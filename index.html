@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Appli VTT</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Feuilles de style Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- Feuille de style personnalisée -->
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 100px; bottom: 0; width: 100%; }
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        .message {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.9);
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <label for="departement-select"><strong>Choisir le département :</strong></label>
+        <select id="departement-select">
+            <option value="">--Sélectionner--</option>
+            <option value="Hérault">Hérault</option>
+            <option value="Gironde">Gironde</option>
+            <!-- Ajoutez d'autres départements ici -->
+        </select>
+        <hr>
+        <strong>Afficher les niveaux de difficulté :</strong><br>
+        <label><input type="checkbox" id="difficulty-1" checked> Très Facile</label><br>
+        <label><input type="checkbox" id="difficulty-2" checked> Facile</label><br>
+        <label><input type="checkbox" id="difficulty-3" checked> Modéré</label><br>
+        <label><input type="checkbox" id="difficulty-4" checked> Difficile</label><br>
+        <label><input type="checkbox" id="difficulty-5" checked> Très Difficile</label>
+    </div>
+
+    <div class="message" id="wip-message">
+        <p><strong>Work in Progress</strong> pour ce département.</p>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Scripts Leaflet -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <!-- Scripts personnalisés -->
+    <script>
+        // Initialisation de la carte
+        var map = L.map('map').setView([46.2276, 2.2137], 6); // Centré sur la France
+
+        // Base layers
+        var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        var satellite = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors, Tiles style by HOT'
+        });
+
+        // Contrôle des couches de base
+        var baseMaps = {
+            "OpenStreetMap": osm,
+            "Satellite": satellite
+        };
+
+        // Couches overlay
+        var loamnessLayer = L.tileLayer('tiles_loamness/{dept}/{z}/{x}/{y}.png', { // Adapter le chemin
+            maxZoom: 19,
+            opacity: 0.7,
+            attribution: '&copy; Votre Attribution'
+        });
+
+        var pistesLayer = L.geoJSON(null, { // Vecteur des pistes
+            style: function(feature) {
+                return {color: 'blue', weight: 2};
+            }
+        });
+
+        // Couches de difficulté
+        var difficultyLayers = {
+            "Très Facile": L.geoJSON(null, {
+                style: {color: 'green', weight: 2},
+                filter: function(feature) {
+                    return feature.properties.cat_code === 1;
+                }
+            }),
+            "Facile": L.geoJSON(null, {
+                style: {color: 'lime', weight: 2},
+                filter: function(feature) {
+                    return feature.properties.cat_code === 2;
+                }
+            }),
+            "Modéré": L.geoJSON(null, {
+                style: {color: 'yellow', weight: 2},
+                filter: function(feature) {
+                    return feature.properties.cat_code === 3;
+                }
+            }),
+            "Difficile": L.geoJSON(null, {
+                style: {color: 'orange', weight: 2},
+                filter: function(feature) {
+                    return feature.properties.cat_code === 4;
+                }
+            }),
+            "Très Difficile": L.geoJSON(null, {
+                style: {color: 'red', weight: 2},
+                filter: function(feature) {
+                    return feature.properties.cat_code === 5;
+                }
+            })
+        };
+
+        // Contrôle des couches overlay
+        var overlayMaps = {
+            "Loamness": loamnessLayer,
+            "Pistes": pistesLayer
+        };
+
+        // Ajouter les couches de difficulté au contrôle des overlays
+        for (var key in difficultyLayers) {
+            overlayMaps[key] = difficultyLayers[key];
+        }
+
+        L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+        // Gestion du Dropdown
+        document.getElementById('departement-select').addEventListener('change', function() {
+            var dept = this.value;
+            if (dept === "") {
+                map.setView([46.2276, 2.2137], 6);
+                // Supprimer les couches spécifiques
+                pistesLayer.clearLayers();
+                for (var key in difficultyLayers) {
+                    difficultyLayers[key].clearLayers();
+                }
+                loamnessLayer.remove();
+                document.getElementById('wip-message').style.display = 'none';
+                return;
+            }
+
+            // Charger les données GeoJSON pour le département
+            var geojsonPath = `data/${dept}_Chemins_difficulte.geojson`; // Assurez-vous que ce fichier existe
+            fetch(geojsonPath)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("Données non disponibles");
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    pistesLayer.clearLayers();
+                    pistesLayer.addData(data).addTo(map);
+
+                    // Ajouter les couches de difficulté
+                    for (var key in difficultyLayers) {
+                        difficultyLayers[key].clearLayers();
+                        var filtered = data.features.filter(f => f.properties.cat_code === parseInt(key.match(/\d+/)[0]));
+                        difficultyLayers[key].addData(filtered);
+                    }
+
+                    // Charger et ajouter le loamness raster si disponible
+                    var loamnessPath = `tiles_loamness/${dept}/`; // Adapter selon votre structure
+                    fetch(loamnessPath)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error("Loamness non disponible");
+                            }
+                            loamnessLayer.addTo(map);
+                        })
+                        .catch(err => {
+                            loamnessLayer.remove();
+                        });
+
+                    // Ajuster la vue de la carte
+                    var bounds = pistesLayer.getBounds();
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds);
+                    }
+
+                    // Masquer le message WIP
+                    document.getElementById('wip-message').style.display = 'none';
+                })
+                .catch(error => {
+                    console.log(error);
+                    // Afficher le message WIP
+                    document.getElementById('wip-message').style.display = 'block';
+                    pistesLayer.clearLayers();
+                    for (var key in difficultyLayers) {
+                        difficultyLayers[key].clearLayers();
+                    }
+                    loamnessLayer.remove();
+                });
+        });
+
+        // Gestion des couches de difficulté (Checkboxes pour afficher/masquer)
+        document.querySelectorAll('.controls input[type=checkbox]').forEach(function(checkbox) {
+            checkbox.addEventListener('change', function(e) {
+                var code = this.id.split('-')[1];
+                var name = getDifficultyName(code);
+                if (this.checked) {
+                    map.addLayer(difficultyLayers[name]);
+                } else {
+                    map.removeLayer(difficultyLayers[name]);
+                }
+            });
+        });
+
+        function getDifficultyName(code) {
+            switch(code) {
+                case '1': return "Très Facile";
+                case '2': return "Facile";
+                case '3': return "Modéré";
+                case '4': return "Difficile";
+                case '5': return "Très Difficile";
+                default: return "";
+            }
+        }
+    </script>
+</body>
+</html>

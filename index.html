@@ -14,9 +14,22 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet-geotiff@1.1.0/dist/leaflet-geotiff.css" />
 
     <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
         #map {
-            height: 100vh;
+            height: 90vh;
             width: 100%;
+        }
+        .header {
+            height: 10vh;
+            background-color: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
         }
         .info {
             padding: 6px 8px;
@@ -33,162 +46,169 @@
 </head>
 <body>
 
-<div id="map"></div>
+    <div class="header">Carte des Chemins et Loamness - Hérault</div>
+    <div id="map"></div>
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-o9N1j8rQ5sLQqaN+X9Q4+zgj0QFN3NKz8tt+3i8c8bM="
-        crossorigin=""></script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-o9N1j8rQ5sLQqaN+X9Q4+zgj0QFN3NKz8tt+3i8c8bM="
+            crossorigin=""></script>
 
-<!-- D3.js -->
-<script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- D3.js -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
 
-<!-- topojson-client -->
-<script src="https://unpkg.com/topojson-client@3"></script>
+    <!-- topojson-client -->
+    <script src="https://unpkg.com/topojson-client@3"></script>
 
-<!-- georaster -->
-<script src="https://unpkg.com/georaster@1.8.0/dist/georaster.browser.min.js"></script>
+    <!-- georaster -->
+    <script src="https://unpkg.com/georaster@1.8.0/dist/georaster.browser.min.js"></script>
 
-<!-- leaflet-geotiff -->
-<script src="https://unpkg.com/leaflet-geotiff@1.1.0/dist/leaflet-geotiff.browser.min.js"></script>
-<script src="https://unpkg.com/leaflet-geotiff@1.1.0/dist/leaflet-geotiff-plotty.browser.min.js"></script>
+    <!-- leaflet-geotiff -->
+    <script src="https://unpkg.com/leaflet-geotiff@1.1.0/dist/leaflet-geotiff.browser.min.js"></script>
+    <script src="https://unpkg.com/leaflet-geotiff@1.1.0/dist/leaflet-geotiff-plotty.browser.min.js"></script>
 
-<script>
-// Fonction pour charger la configuration
-async function loadConfig() {
-    try {
-        const response = await fetch('config/Hérault_config.json');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const config = await response.json();
-        return config;
-    } catch (error) {
-        console.error('Erreur lors du chargement de la configuration:', error);
-        alert('Impossible de charger la configuration. Consultez la console pour plus de détails.');
-    }
-}
-
-// Fonction pour initialiser la carte
-async function initMap() {
-    const config = await loadConfig();
-    if (!config) return;
-
-    const topojsonUrl = config.topojson_url;
-    const rasterUrl = config.raster_url;
-
-    // Initialiser la carte centrée sur Hérault
-    const map = L.map('map').setView([43.6111, 3.8772], 8); // Coordonnées approximatives de Hérault
-
-    // Ajouter une couche de base OpenStreetMap
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    // Informations sur les difficultés
-    const info = L.control();
-
-    info.onAdd = function (map) {
-        this._div = L.DomUtil.create('div', 'info');
-        this.update();
-        return this._div;
-    };
-
-    info.update = function (props) {
-        this._div.innerHTML = '<h4>Difficulté des Chemins</h4>' +  (props ?
-            '<b>' + props.name + '</b><br />' + props.difficulty
-            : 'Passez la souris sur un chemin');
-    };
-
-    info.addTo(map);
-
-    // Définir une fonction de style basée sur la difficulté
-    function getColor(difficulty) {
-        return difficulty === 'très facile' ? '#ffffcc' :
-               difficulty === 'facile'      ? '#a1dab4' :
-               difficulty === 'modéré'      ? '#41b6c4' :
-               difficulty === 'difficile'    ? '#2c7fb8' :
-               difficulty === 'très difficile' ? '#253494' :
-                                              '#cccccc';
-    }
-
-    function style(feature) {
-        return {
-            weight: 2,
-            opacity: 1,
-            color: getColor(feature.properties.difficulty),
-            dashArray: '3',
-            fillOpacity: 0.7
-        };
-    }
-
-    // Ajouter un événement de survol
-    function onEachFeature(feature, layer) {
-        layer.on({
-            mouseover: function(e) {
-                const layer = e.target;
-
-                layer.setStyle({
-                    weight: 5,
-                    color: '#666',
-                    dashArray: '',
-                    fillOpacity: 0.7
-                });
-
-                if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-                    layer.bringToFront();
-                }
-
-                info.update(layer.feature.properties);
-            },
-            mouseout: function(e) {
-                geojson.resetStyle(e.target);
-                info.update();
+    <script>
+    // Fonction pour charger la configuration
+    async function loadConfig() {
+        try {
+            const response = await fetch('config/Hérault_config.json');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
-        });
+            const config = await response.json();
+            return config;
+        } catch (error) {
+            console.error('Erreur lors du chargement de la configuration:', error);
+            alert('Impossible de charger la configuration. Consultez la console pour plus de détails.');
+            return null;
+        }
     }
 
-    let geojson;
+    // Fonction pour initialiser la carte
+    async function initMap() {
+        const config = await loadConfig();
+        if (!config) return;
 
-    // Charger et ajouter le TopoJSON
-    d3.json(topojsonUrl).then(function(topodata) {
-        const geoData = topojson.feature(topodata, topodata.objects.features);
-        geojson = L.geoJSON(geoData, {
-            style: style,
-            onEachFeature: onEachFeature
+        const topojsonUrl = config.topojson_url;
+        const rasterUrl = config.raster_url;
+
+        // Initialiser la carte centrée sur Hérault
+        const map = L.map('map').setView([43.6111, 3.8772], 8); // Coordonnées approximatives de Hérault
+
+        // Ajouter une couche de base OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
-    }).catch(function(error) {
-        console.error('Erreur lors du chargement du TopoJSON:', error);
-        alert('Impossible de charger le fichier TopoJSON. Consultez la console pour plus de détails.');
-    });
 
-    // Charger et ajouter le Raster Loamness
-    fetch(rasterUrl)
-        .then(response => response.arrayBuffer())
-        .then(arrayBuffer => parseGeoraster(arrayBuffer))
-        .then(georaster => {
-            const rasterLayer = new GeoRasterLayer({
-                georaster: georaster,
-                opacity: 0.7,
-                pixelValuesToColorFn: function(pixelValues) {
-                    const [loam] = pixelValues;
-                    if (loam === null || loam === undefined) return null;
-                    return `rgba(255, ${255 - loam * 2.55}, 0, 0.5)`; // Exemple de coloration basée sur loamness
+        // Informations sur les difficultés
+        const info = L.control();
+
+        info.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info');
+            this.update();
+            return this._div;
+        };
+
+        info.update = function (props) {
+            this._div.innerHTML = '<h4>Difficulté des Chemins</h4>' +  (props ?
+                '<b>' + props.name + '</b><br />' + props.difficulty
+                : 'Passez la souris sur un chemin');
+        };
+
+        info.addTo(map);
+
+        // Définir une fonction de style basée sur la difficulté
+        function getColor(difficulty) {
+            return difficulty === 'très facile' ? '#ffffcc' :
+                   difficulty === 'facile'      ? '#a1dab4' :
+                   difficulty === 'modéré'      ? '#41b6c4' :
+                   difficulty === 'difficile'    ? '#2c7fb8' :
+                   difficulty === 'très difficile' ? '#253494' :
+                                                  '#cccccc';
+        }
+
+        function style(feature) {
+            return {
+                weight: 2,
+                opacity: 1,
+                color: getColor(feature.properties.difficulty),
+                dashArray: '3',
+                fillOpacity: 0.7
+            };
+        }
+
+        // Ajouter un événement de survol
+        function onEachFeature(feature, layer) {
+            layer.on({
+                mouseover: function(e) {
+                    const layer = e.target;
+
+                    layer.setStyle({
+                        weight: 5,
+                        color: '#666',
+                        dashArray: '',
+                        fillOpacity: 0.7
+                    });
+
+                    if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                        layer.bringToFront();
+                    }
+
+                    info.update(layer.feature.properties);
                 },
-                resolution: 256 // Ajustez la résolution si nécessaire
+                mouseout: function(e) {
+                    geojson.resetStyle(e.target);
+                    info.update();
+                }
             });
-            rasterLayer.addTo(map);
-        })
-        .catch(error => {
-            console.error('Erreur lors du chargement du raster Loamness:', error);
-            alert('Impossible de charger le raster Loamness. Consultez la console pour plus de détails.');
-        });
-}
+        }
 
-// Appeler la fonction d'initialisation de la carte
-initMap();
-</script>
+        let geojson;
+
+        // Charger et ajouter le TopoJSON
+        d3.json(topojsonUrl).then(function(topodata) {
+            const geoData = topojson.feature(topodata, topodata.objects.features);
+            geojson = L.geoJSON(geoData, {
+                style: style,
+                onEachFeature: onEachFeature
+            }).addTo(map);
+        }).catch(function(error) {
+            console.error('Erreur lors du chargement du TopoJSON:', error);
+            alert('Impossible de charger le fichier TopoJSON. Consultez la console pour plus de détails.');
+        });
+
+        // Charger et ajouter le Raster Loamness
+        fetch(rasterUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.arrayBuffer();
+            })
+            .then(arrayBuffer => parseGeoraster(arrayBuffer))
+            .then(georaster => {
+                const rasterLayer = new GeoRasterLayer({
+                    georaster: georaster,
+                    opacity: 0.7,
+                    pixelValuesToColorFn: function(pixelValues) {
+                        const [loam] = pixelValues;
+                        if (loam === null || loam === undefined) return null;
+                        return `rgba(255, ${255 - loam * 2.55}, 0, 0.5)`; // Exemple de coloration basée sur loamness
+                    },
+                    resolution: 256 // Ajustez la résolution si nécessaire
+                });
+                rasterLayer.addTo(map);
+            })
+            .catch(error => {
+                console.error('Erreur lors du chargement du raster Loamness:', error);
+                alert('Impossible de charger le raster Loamness. Consultez la console pour plus de détails.');
+            });
+    }
+
+    // Appeler la fonction d'initialisation de la carte
+    initMap();
+    </script>
 
 </body>
 </html>

@@ -2,238 +2,193 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Appli VTT</title>
+    <title>Chemins et Loamness - Hérault</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Feuilles de style Leaflet -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <!-- Feuille de style personnalisée -->
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-sA+ePqQ/3P2X+K0XcKEvWTBpwuhdFeK+4aq9teq++Ew="
+          crossorigin=""/>
+
+    <!-- Leaflet Geotiff CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-geotiff@1.1.0/dist/leaflet-geotiff.css" />
+
     <style>
-        body { margin: 0; padding: 0; }
-        #map { position: absolute; top: 100px; bottom: 0; width: 100%; }
-        .controls {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 1000;
-            background: white;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        #map {
+            height: 100vh;
+            width: 100%;
         }
-        .message {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 1000;
-            background: rgba(255,255,255,0.9);
-            padding: 10px;
-            border-radius: 5px;
+        .info {
+            padding: 6px 8px;
+            background: white;
+            background: rgba(255,255,255,0.8);
             box-shadow: 0 0 15px rgba(0,0,0,0.2);
-            display: none;
+            border-radius: 5px;
+        }
+        .info h4 {
+            margin: 0 0 5px;
+            color: #777;
         }
     </style>
 </head>
 <body>
 
-    <div class="controls">
-        <label for="departement-select"><strong>Choisir le département :</strong></label>
-        <select id="departement-select">
-            <option value="">--Sélectionner--</option>
-            <option value="Hérault">Hérault</option>
-            <option value="Gironde">Gironde</option>
-            <!-- Ajoutez d'autres départements ici -->
-        </select>
-        <hr>
-        <strong>Afficher les niveaux de difficulté :</strong><br>
-        <label><input type="checkbox" id="difficulty-1" checked> Très Facile</label><br>
-        <label><input type="checkbox" id="difficulty-2" checked> Facile</label><br>
-        <label><input type="checkbox" id="difficulty-3" checked> Modéré</label><br>
-        <label><input type="checkbox" id="difficulty-4" checked> Difficile</label><br>
-        <label><input type="checkbox" id="difficulty-5" checked> Très Difficile</label>
-    </div>
+<div id="map"></div>
 
-    <div class="message" id="wip-message">
-        <p><strong>Work in Progress</strong> pour ce département.</p>
-    </div>
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-o9N1j8rQ5sLQqaN+X9Q4+zgj0QFN3NKz8tt+3i8c8bM="
+        crossorigin=""></script>
 
-    <div id="map"></div>
+<!-- D3.js -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
 
-    <!-- Scripts Leaflet -->
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <!-- Scripts personnalisés -->
-    <script>
-        // Initialisation de la carte
-        var map = L.map('map').setView([46.2276, 2.2137], 6); // Centré sur la France
+<!-- topojson-client -->
+<script src="https://unpkg.com/topojson-client@3"></script>
 
-        // Base layers
-        var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
+<!-- georaster -->
+<script src="https://unpkg.com/georaster@1.8.0/dist/georaster.browser.min.js"></script>
 
-        var satellite = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors, Tiles style by HOT'
-        });
+<!-- leaflet-geotiff -->
+<script src="https://unpkg.com/leaflet-geotiff@1.1.0/dist/leaflet-geotiff.browser.min.js"></script>
+<script src="https://unpkg.com/leaflet-geotiff@1.1.0/dist/leaflet-geotiff-plotty.browser.min.js"></script>
 
-        // Contrôle des couches de base
-        var baseMaps = {
-            "OpenStreetMap": osm,
-            "Satellite": satellite
-        };
-
-        // Couches overlay
-        var loamnessLayer = L.tileLayer('tiles_loamness/{dept}/{z}/{x}/{y}.png', { // Adapter le chemin
-            maxZoom: 19,
-            opacity: 0.7,
-            attribution: '&copy; Votre Attribution'
-        });
-
-        var pistesLayer = L.geoJSON(null, { // Vecteur des pistes
-            style: function(feature) {
-                return {color: 'blue', weight: 2};
-            }
-        });
-
-        // Couches de difficulté
-        var difficultyLayers = {
-            "Très Facile": L.geoJSON(null, {
-                style: {color: 'green', weight: 2},
-                filter: function(feature) {
-                    return feature.properties.cat_code === 1;
-                }
-            }),
-            "Facile": L.geoJSON(null, {
-                style: {color: 'lime', weight: 2},
-                filter: function(feature) {
-                    return feature.properties.cat_code === 2;
-                }
-            }),
-            "Modéré": L.geoJSON(null, {
-                style: {color: 'yellow', weight: 2},
-                filter: function(feature) {
-                    return feature.properties.cat_code === 3;
-                }
-            }),
-            "Difficile": L.geoJSON(null, {
-                style: {color: 'orange', weight: 2},
-                filter: function(feature) {
-                    return feature.properties.cat_code === 4;
-                }
-            }),
-            "Très Difficile": L.geoJSON(null, {
-                style: {color: 'red', weight: 2},
-                filter: function(feature) {
-                    return feature.properties.cat_code === 5;
-                }
-            })
-        };
-
-        // Contrôle des couches overlay
-        var overlayMaps = {
-            "Loamness": loamnessLayer,
-            "Pistes": pistesLayer
-        };
-
-        // Ajouter les couches de difficulté au contrôle des overlays
-        for (var key in difficultyLayers) {
-            overlayMaps[key] = difficultyLayers[key];
+<script>
+// Fonction pour charger la configuration
+async function loadConfig() {
+    try {
+        const response = await fetch('config/Hérault_config.json');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
+        const config = await response.json();
+        return config;
+    } catch (error) {
+        console.error('Erreur lors du chargement de la configuration:', error);
+        alert('Impossible de charger la configuration. Consultez la console pour plus de détails.');
+    }
+}
 
-        L.control.layers(baseMaps, overlayMaps).addTo(map);
+// Fonction pour initialiser la carte
+async function initMap() {
+    const config = await loadConfig();
+    if (!config) return;
 
-        // Gestion du Dropdown
-        document.getElementById('departement-select').addEventListener('change', function() {
-            var dept = this.value;
-            if (dept === "") {
-                map.setView([46.2276, 2.2137], 6);
-                // Supprimer les couches spécifiques
-                pistesLayer.clearLayers();
-                for (var key in difficultyLayers) {
-                    difficultyLayers[key].clearLayers();
-                }
-                loamnessLayer.remove();
-                document.getElementById('wip-message').style.display = 'none';
-                return;
-            }
+    const topojsonUrl = config.topojson_url;
+    const rasterUrl = config.raster_url;
 
-            // Charger les données GeoJSON pour le département
-            var geojsonPath = `data/${dept}_Chemins_difficulte.geojson`; // Assurez-vous que ce fichier existe
-            fetch(geojsonPath)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error("Données non disponibles");
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    pistesLayer.clearLayers();
-                    pistesLayer.addData(data).addTo(map);
+    // Initialiser la carte centrée sur Hérault
+    const map = L.map('map').setView([43.6111, 3.8772], 8); // Coordonnées approximatives de Hérault
 
-                    // Ajouter les couches de difficulté
-                    for (var key in difficultyLayers) {
-                        difficultyLayers[key].clearLayers();
-                        var filtered = data.features.filter(f => f.properties.cat_code === parseInt(key.match(/\d+/)[0]));
-                        difficultyLayers[key].addData(filtered);
-                    }
+    // Ajouter une couche de base OpenStreetMap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-                    // Charger et ajouter le loamness raster si disponible
-                    var loamnessPath = `tiles_loamness/${dept}/`; // Adapter selon votre structure
-                    fetch(loamnessPath)
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error("Loamness non disponible");
-                            }
-                            loamnessLayer.addTo(map);
-                        })
-                        .catch(err => {
-                            loamnessLayer.remove();
-                        });
+    // Informations sur les difficultés
+    const info = L.control();
 
-                    // Ajuster la vue de la carte
-                    var bounds = pistesLayer.getBounds();
-                    if (bounds.isValid()) {
-                        map.fitBounds(bounds);
-                    }
+    info.onAdd = function (map) {
+        this._div = L.DomUtil.create('div', 'info');
+        this.update();
+        return this._div;
+    };
 
-                    // Masquer le message WIP
-                    document.getElementById('wip-message').style.display = 'none';
-                })
-                .catch(error => {
-                    console.log(error);
-                    // Afficher le message WIP
-                    document.getElementById('wip-message').style.display = 'block';
-                    pistesLayer.clearLayers();
-                    for (var key in difficultyLayers) {
-                        difficultyLayers[key].clearLayers();
-                    }
-                    loamnessLayer.remove();
+    info.update = function (props) {
+        this._div.innerHTML = '<h4>Difficulté des Chemins</h4>' +  (props ?
+            '<b>' + props.name + '</b><br />' + props.difficulty
+            : 'Passez la souris sur un chemin');
+    };
+
+    info.addTo(map);
+
+    // Définir une fonction de style basée sur la difficulté
+    function getColor(difficulty) {
+        return difficulty === 'très facile' ? '#ffffcc' :
+               difficulty === 'facile'      ? '#a1dab4' :
+               difficulty === 'modéré'      ? '#41b6c4' :
+               difficulty === 'difficile'    ? '#2c7fb8' :
+               difficulty === 'très difficile' ? '#253494' :
+                                              '#cccccc';
+    }
+
+    function style(feature) {
+        return {
+            weight: 2,
+            opacity: 1,
+            color: getColor(feature.properties.difficulty),
+            dashArray: '3',
+            fillOpacity: 0.7
+        };
+    }
+
+    // Ajouter un événement de survol
+    function onEachFeature(feature, layer) {
+        layer.on({
+            mouseover: function(e) {
+                const layer = e.target;
+
+                layer.setStyle({
+                    weight: 5,
+                    color: '#666',
+                    dashArray: '',
+                    fillOpacity: 0.7
                 });
-        });
 
-        // Gestion des couches de difficulté (Checkboxes pour afficher/masquer)
-        document.querySelectorAll('.controls input[type=checkbox]').forEach(function(checkbox) {
-            checkbox.addEventListener('change', function(e) {
-                var code = this.id.split('-')[1];
-                var name = getDifficultyName(code);
-                if (this.checked) {
-                    map.addLayer(difficultyLayers[name]);
-                } else {
-                    map.removeLayer(difficultyLayers[name]);
+                if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                    layer.bringToFront();
                 }
-            });
-        });
 
-        function getDifficultyName(code) {
-            switch(code) {
-                case '1': return "Très Facile";
-                case '2': return "Facile";
-                case '3': return "Modéré";
-                case '4': return "Difficile";
-                case '5': return "Très Difficile";
-                default: return "";
+                info.update(layer.feature.properties);
+            },
+            mouseout: function(e) {
+                geojson.resetStyle(e.target);
+                info.update();
             }
-        }
-    </script>
+        });
+    }
+
+    let geojson;
+
+    // Charger et ajouter le TopoJSON
+    d3.json(topojsonUrl).then(function(topodata) {
+        const geoData = topojson.feature(topodata, topodata.objects.features);
+        geojson = L.geoJSON(geoData, {
+            style: style,
+            onEachFeature: onEachFeature
+        }).addTo(map);
+    }).catch(function(error) {
+        console.error('Erreur lors du chargement du TopoJSON:', error);
+        alert('Impossible de charger le fichier TopoJSON. Consultez la console pour plus de détails.');
+    });
+
+    // Charger et ajouter le Raster Loamness
+    fetch(rasterUrl)
+        .then(response => response.arrayBuffer())
+        .then(arrayBuffer => parseGeoraster(arrayBuffer))
+        .then(georaster => {
+            const rasterLayer = new GeoRasterLayer({
+                georaster: georaster,
+                opacity: 0.7,
+                pixelValuesToColorFn: function(pixelValues) {
+                    const [loam] = pixelValues;
+                    if (loam === null || loam === undefined) return null;
+                    return `rgba(255, ${255 - loam * 2.55}, 0, 0.5)`; // Exemple de coloration basée sur loamness
+                },
+                resolution: 256 // Ajustez la résolution si nécessaire
+            });
+            rasterLayer.addTo(map);
+        })
+        .catch(error => {
+            console.error('Erreur lors du chargement du raster Loamness:', error);
+            alert('Impossible de charger le raster Loamness. Consultez la console pour plus de détails.');
+        });
+}
+
+// Appeler la fonction d'initialisation de la carte
+initMap();
+</script>
+
 </body>
 </html>

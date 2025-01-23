@@ -5,10 +5,8 @@
     <title>Chemins et Loamness - Hérault</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-          integrity="sha256-sA+ePqQ/3P2X+K0XcKEvWTBpwuhdFeK+4aq9teq++Ew="
-          crossorigin=""/>
+    <!-- Leaflet CSS sans integrity et crossorigin -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
     <!-- Leaflet Geotiff CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-geotiff@1.1.0/dist/leaflet-geotiff.css" />
@@ -49,10 +47,8 @@
     <div class="header">Carte des Chemins et Loamness - Hérault</div>
     <div id="map"></div>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-            integrity="sha256-o9N1j8rQ5sLQqaN+X9Q4+zgj0QFN3NKz8tt+3i8c8bM="
-            crossorigin=""></script>
+    <!-- Leaflet JS sans integrity et crossorigin -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- D3.js -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
@@ -73,15 +69,22 @@
         try {
             const response = await fetch('config/Hérault_config.json');
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error(`Erreur HTTP lors du chargement de la configuration: ${response.status}`);
             }
             const config = await response.json();
             return config;
         } catch (error) {
             console.error('Erreur lors du chargement de la configuration:', error);
             alert('Impossible de charger la configuration. Consultez la console pour plus de détails.');
+            displayError('Erreur de configuration. Veuillez vérifier le fichier config/Hérault_config.json.');
             return null;
         }
+    }
+
+    // Fonction pour afficher un message d'erreur sur la page
+    function displayError(message) {
+        const mapDiv = document.getElementById('map');
+        mapDiv.innerHTML = `<div style="padding: 20px; text-align: center; color: red;">${message}</div>`;
     }
 
     // Fonction pour initialiser la carte
@@ -168,6 +171,9 @@
 
         // Charger et ajouter le TopoJSON
         d3.json(topojsonUrl).then(function(topodata) {
+            if (!topodata.objects || !topodata.objects.features) {
+                throw new Error('TopoJSON invalide: objet "features" manquant.');
+            }
             const geoData = topojson.feature(topodata, topodata.objects.features);
             geojson = L.geoJSON(geoData, {
                 style: style,
@@ -176,13 +182,14 @@
         }).catch(function(error) {
             console.error('Erreur lors du chargement du TopoJSON:', error);
             alert('Impossible de charger le fichier TopoJSON. Consultez la console pour plus de détails.');
+            displayError('Erreur de chargement du fichier TopoJSON.');
         });
 
         // Charger et ajouter le Raster Loamness
         fetch(rasterUrl)
             .then(response => {
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    throw new Error(`Erreur HTTP lors du chargement du raster: ${response.status}`);
                 }
                 return response.arrayBuffer();
             })
@@ -203,6 +210,7 @@
             .catch(error => {
                 console.error('Erreur lors du chargement du raster Loamness:', error);
                 alert('Impossible de charger le raster Loamness. Consultez la console pour plus de détails.');
+                displayError('Erreur de chargement du fichier Raster Loamness.');
             });
     }
 

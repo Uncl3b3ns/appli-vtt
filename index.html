@@ -182,7 +182,7 @@
       }
       const arrayBuffer = await responseRaster.arrayBuffer();
       
-      // Assurez-vous que parseGeoraster est défini
+      // Vérifiez que parseGeoraster est défini
       if (typeof parseGeoraster !== 'function') {
           throw new Error("parseGeoraster n'est pas défini. Vérifiez le chargement de la bibliothèque Georaster.");
       }

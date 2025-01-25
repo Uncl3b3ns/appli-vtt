@@ -107,7 +107,7 @@
         // Méthode pour mettre à jour le contenu de l'info
         info.update = function (props) {
             this._div.innerHTML = '<h4>Difficulté des Chemins</h4>' +  (props ?
-                '<b>' + props.nom + '</b><br />' + props.difficulty
+                '<b>' + (props.nom || props.difficulty_clean || 'N/A') + '</b><br />' + props.difficulty
                 : 'Sélectionnez un chemin');
         };
       
@@ -133,7 +133,7 @@
       
         legend.addTo(map);
       
-        // 5) Charger le TopoJSON et ajouter la couche GeoJSON
+        // 5) Charger le TopoJSON et préparer la couche GeoJSON
         const respTopo = await fetch(topojsonUrl);
         if(!respTopo.ok){
           throw new Error("Fichier TopoJSON introuvable.");
@@ -168,7 +168,7 @@
       
         // Pré-indexer les features par difficulté pour optimisation
         const featuresByDifficulty = {};
-
+  
         geoData.features.forEach(feature => {
             const difficulty = feature.properties.difficulty;
             if (!featuresByDifficulty[difficulty]) {
@@ -176,8 +176,8 @@
             }
             featuresByDifficulty[difficulty].push(feature);
         });
-
-        // Créer une couche GeoJSON
+  
+        // Créer une couche GeoJSON vide
         const geojsonLayer = L.geoJSON(null, { // Initialement vide
             style: function(feature){
                 const difficulty = feature.properties.difficulty;
@@ -193,33 +193,25 @@
                     mouseout: resetHighlight,
                     click: zoomToFeature
                 });
-                layer.bindPopup(`<b>${feature.properties.nom}</b><br>Difficulté: ${feature.properties.difficulty}`);
+                layer.bindPopup(`<b>${feature.properties.nom || feature.properties.difficulty_clean || 'N/A'}</b><br>Difficulté: ${feature.properties.difficulty}`);
             }
         }).addTo(map);
       
-        // Fonction de mise à jour de la couche GeoJSON en fonction des filtres
-        function updateGeoJSONLayer() {
-            const checkedDifficulties = Array.from(document.querySelectorAll('.filter-control input[type=checkbox]:checked'))
-                .map(cb => cb.value);
-            
-            geojsonLayer.clearLayers();
-            
-            let filteredFeatures = [];
-            checkedDifficulties.forEach(difficulty => {
-                if (featuresByDifficulty[difficulty]) {
-                    filteredFeatures = filteredFeatures.concat(featuresByDifficulty[difficulty]);
-                }
-            });
-            
-            const filteredData = {
-                "type": "FeatureCollection",
-                "features": filteredFeatures
-            };
-            
-            geojsonLayer.addData(filteredData);
+        // 6) Définir la Fonction `debouncedUpdate` Avant son Utilisation
+        // Fonction debounce pour éviter les appels trop fréquents
+        function debounce(func, delay) {
+            let inDebounce;
+            return function() {
+                const context = this;
+                const args = arguments;
+                clearTimeout(inDebounce);
+                inDebounce = setTimeout(() => func.apply(context, args), delay);
+            }
         }
       
-        // 6) Fonctions d'interactivité
+        const debouncedUpdate = debounce(updateGeoJSONLayer, 300);
+      
+        // 7) Fonctions d'interactivité
         function highlightFeature(e) {
             const layer = e.target;
     
@@ -246,10 +238,10 @@
             map.fitBounds(e.target.getBounds());
         }
       
-        // 7) Ajouter les Contrôles de Filtrage
+        // 8) Ajouter les Contrôles de Filtrage
         // Créer un contrôle de filtrage
         const filterControl = L.control({position: 'topright'});
-
+  
         filterControl.onAdd = function (map) {
             const div = L.DomUtil.create('div', 'info filter-control');
             div.innerHTML = `
@@ -273,23 +265,32 @@
             
             return div;
         };
-
+  
         filterControl.addTo(map);
-
-        // Fonction debounce pour éviter les appels trop fréquents
-        function debounce(func, delay) {
-            let inDebounce;
-            return function() {
-                const context = this;
-                const args = arguments;
-                clearTimeout(inDebounce);
-                inDebounce = setTimeout(() => func.apply(context, args), delay);
-            }
+  
+        // 9) Fonction de Mise à Jour de la Couche GeoJSON en Fonction des Filtres
+        function updateGeoJSONLayer() {
+            const checkedDifficulties = Array.from(document.querySelectorAll('.filter-control input[type=checkbox]:checked'))
+                .map(cb => cb.value);
+            
+            geojsonLayer.clearLayers();
+            
+            let filteredFeatures = [];
+            checkedDifficulties.forEach(difficulty => {
+                if (featuresByDifficulty[difficulty]) {
+                    filteredFeatures = filteredFeatures.concat(featuresByDifficulty[difficulty]);
+                }
+            });
+            
+            const filteredData = {
+                "type": "FeatureCollection",
+                "features": filteredFeatures
+            };
+            
+            geojsonLayer.addData(filteredData);
         }
-
-        const debouncedUpdate = debounce(updateGeoJSONLayer, 300);
-
-        // 8) Charger le Raster Loamness et l'ajouter à la carte
+  
+        // 10) Charger le Raster Loamness et l'ajouter à la carte
         try {
           const responseRaster = await fetch(rasterUrl);
           if(!responseRaster.ok){

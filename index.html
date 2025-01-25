@@ -78,8 +78,6 @@
         }
 
         // 1) Charger la config locale
-        // Ici, on charge config/Hérault_config.json
-        // Dedans, on a "topojson_url": "https://Uncl3b3ns.github.io/appli-vtt/data/Hérault_Chemins_difficulte.topojson"
         const responseConfig = await fetch('config/Hérault_config.json');  // Remplacez 'Hérault' par votre département
         if(!responseConfig.ok){
           throw new Error("Erreur lors du chargement du fichier de configuration.");
@@ -116,7 +114,7 @@
         // Contrôle des couches de base
         const baseLayers = {
           "OSM": osm,
-          "Satellite": satelliteLabels
+          "Satellite Hybride": satelliteLabels
         };
 
         L.control.layers(baseLayers).addTo(map);
@@ -132,7 +130,10 @@
 
         info.update = function (props) {
             this._div.innerHTML = '<h4>Difficulté des Chemins</h4>' +  (props
-                ? '<b>' + (props.nom || props.difficulty_clean || 'N/A') + '</b><br />' + props.difficulty
+                ? `<b>${props.nom || props.difficulty_clean || 'N/A'}</b><br />
+                   Difficulté: ${props.difficulty}<br />
+                   Pente Moyenne: ${props.slope_mean !== null ? props.slope_mean.toFixed(2) : 'N/A'}°<br />
+                   Pente Maximum: ${props.slope_max !== null ? props.slope_max.toFixed(2) : 'N/A'}°`
                 : 'Sélectionnez un chemin');
         };
 
@@ -152,9 +153,14 @@
                     grades[i] + '<br>';
             }
 
-            // Ajouter une séparation et une explication pour le loamness
+            // Ajouter une séparation et une explication pour le Loamness
             div.innerHTML += '<hr><strong>Loamness (%)</strong><br>';
-            div.innerHTML += 'Indique la proportion de limon dans le sol. Les valeurs plus élevées représentent une plus grande présence de limon.';
+            div.innerHTML += 'Indice de Loamness : Mesure la proportion de sable, limon et argile dans le sol pour déterminer sa compatibilité avec le VTT. Des sols avec des proportions équilibrées favorisent une meilleure adhérence et maniabilité sur les sentiers.<br><br>';
+
+            // Ajouter une séparation et une explication pour la Pente
+            div.innerHTML += '<strong>Pente</strong><br>';
+            div.innerHTML += 'Pente Moyenne : Inclinaison moyenne du chemin.<br>';
+            div.innerHTML += 'Pente Maximum : Inclinaison maximale rencontrée sur le chemin.';
             return div;
         };
 
@@ -219,7 +225,10 @@
                     click: zoomToFeature
                 });
                 layer.bindPopup(
-                  `<b>${feature.properties.nom || feature.properties.difficulty_clean || 'N/A'}</b><br>Difficulté: ${feature.properties.difficulty}`
+                  `<b>${feature.properties.nom || feature.properties.difficulty_clean || 'N/A'}</b><br />
+                   Difficulté: ${feature.properties.difficulty}<br />
+                   Pente Moyenne: ${feature.properties.slope_mean !== null ? feature.properties.slope_mean.toFixed(2) : 'N/A'}°<br />
+                   Pente Maximum: ${feature.properties.slope_max !== null ? feature.properties.slope_max.toFixed(2) : 'N/A'}°`
                 );
             }
         }).addTo(map);
@@ -321,11 +330,11 @@
             opacity: 0.6,
             pixelValuesToColorFn: values => {
               if (values[0] === null || isNaN(values[0])) return null;
-              const loam = values[0];
-              if (loam >= 95) return 'rgba(0, 0, 139, 0.6)';        // Bleu Très Foncé
-              if (loam >= 90) return 'rgba(0, 100, 0, 0.6)';        // Vert Foncé
-              if (loam >= 85) return 'rgba(34, 139, 34, 0.6)';       // Vert Moyen
-              if (loam >= 80) return 'rgba(144, 238, 144, 0.6)';     // Vert Clair
+              const loamness = values[0];
+              if (loamness >= 95) return 'rgba(0, 0, 139, 0.6)';        // Bleu Très Foncé
+              if (loamness >= 90) return 'rgba(0, 100, 0, 0.6)';        // Vert Foncé
+              if (loamness >= 85) return 'rgba(34, 139, 34, 0.6)';       // Vert Moyen
+              if (loamness >= 80) return 'rgba(144, 238, 144, 0.6)';     // Vert Clair
               return null; // < 80% => transparent
             },
             resolution: 256 // Ajustez la résolution si nécessaire
@@ -333,7 +342,7 @@
       
           rasterLayer.addTo(map);
 
-          // Légende du raster Loamness
+          // Légende du raster Loamness avec explication correcte
           const rasterLegend = L.control({position: 'bottomleft'});
 
           rasterLegend.onAdd = function (map) {
@@ -353,9 +362,14 @@
                       labels[i] + '<br>';
               }
 
-              // Ajouter une explication pour le loamness
+              // Ajouter une séparation et une explication pour le Loamness
               div.innerHTML += '<hr><strong>Loamness (%)</strong><br>';
-              div.innerHTML += 'Indique la proportion de limon dans le sol. Les valeurs plus élevées représentent une plus grande présence de limon.';
+              div.innerHTML += 'Indice de Loamness : Mesure la proportion de sable, limon et argile dans le sol pour déterminer sa compatibilité avec le VTT. Des sols avec des proportions équilibrées favorisent une meilleure adhérence et maniabilité sur les sentiers.<br><br>';
+
+              // Ajouter une séparation et une explication pour la Pente
+              div.innerHTML += '<strong>Pente</strong><br>';
+              div.innerHTML += 'Pente Moyenne : Inclinaison moyenne du chemin.<br>';
+              div.innerHTML += 'Pente Maximum : Inclinaison maximale rencontrée sur le chemin.';
               return div;
           };
 

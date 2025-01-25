@@ -45,6 +45,17 @@
       .filter-control label {
           font-size: 14px;
       }
+      .department-control {
+          background: white;
+          padding: 10px;
+          border-radius: 5px;
+          box-shadow: 0 0 15px rgba(0,0,0,0.2);
+          margin-bottom: 10px;
+      }
+      .department-control select {
+          width: 100%;
+          padding: 5px;
+      }
     </style>
 </head>
 <body>
@@ -79,21 +90,24 @@
           throw new Error("topojson n'est pas défini. Vérifiez le chargement de la bibliothèque TopoJSON.");
         }
 
-        // 1) Charger la config locale
-        const responseConfig = await fetch('config/Hérault_config.json');  // Remplacez 'Hérault' par votre département
-        if(!responseConfig.ok){
-          throw new Error("Erreur lors du chargement du fichier de configuration.");
-        }
-        const config = await responseConfig.json();
-        console.log("Config loaded:", config); // Ajouté pour le débogage
+        // 1) Définir les départements avec leurs URLs
+        const departments = {
+          "Hérault": {
+            topojson_url: "https://Uncl3b3ns.github.io/appli-vtt/data/Hérault_Chemins_difficulte.topojson",
+            raster_url: "https://Uncl3b3ns.github.io/appli-vtt/raster/Hérault_Loamness.tif"
+          },
+          // Ajoutez d'autres départements ici
+          // "AutreDépartement": {
+          //   topojson_url: "https://Uncl3b3ns.github.io/appli-vtt/data/AutreDépartement_Chemins_difficulte.topojson",
+          //   raster_url: "https://Uncl3b3ns.github.io/appli-vtt/raster/AutreDépartement_Loamness.tif"
+          // }
+        };
 
-        const topojsonUrl = config.topojson_url; // => lien GitHub Pages
-        const rasterUrl   = config.raster_url;   // => par ex. GitHub Pages
-
-        // 2) Initialiser la carte
+        // 2) Initialiser la carte avec la vue par défaut (Hérault)
+        const defaultDept = "Hérault";
         const map = L.map('map').setView([43.6, 3.87], 8); // Centrez selon votre département
 
-        // Définir les couches de base
+        // 3) Définir les couches de base
         const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom:19,
           attribution: '&copy; OpenStreetMap contributors'
@@ -113,29 +127,54 @@
         // Grouper satellite et labels pour une vue hybride
         const satelliteLabels = L.layerGroup([satellite, labels]);
 
-        // 3) Définir les couches d'overlay
-        // Couche des chemins (Chemins)
-        // Note : GeoJSON sera ajouté plus tard
+        // 4) Définir les couches d'overlay
+        let currentCheminsLayer = null;
+        let currentLoamnessLayer = null;
 
-        // Couche Loamness (raster)
-        let rasterLayer; // Déclarer ici pour l'ajouter aux overlays
-
-        // 4) Contrôle des couches de base et overlays
+        // 5) Contrôle des couches de base et overlays
         const baseLayers = {
           "OSM": osm,
           "Satellite Hybride": satelliteLabels
         };
 
         const overlayLayers = {
-          "Loamness": null, // Placeholder, sera assigné après chargement
-          "Chemins": null    // Placeholder, sera assigné après chargement
+          // Les overlays seront ajoutés dynamiquement
         };
 
-        // 5) Ajouter les couches d'overlay après leur création
-        // Nous les assignerons après avoir créé les couches
-
-        // 6) Ajouter un contrôle de couches
         const layerControl = L.control.layers(baseLayers, overlayLayers).addTo(map);
+
+        // 6) Ajouter un contrôle de sélection de département
+        const DepartmentControl = L.Control.extend({
+          options: {
+            position: 'topright'
+          },
+          onAdd: function (map) {
+            const container = L.DomUtil.create('div', 'department-control');
+
+            const select = L.DomUtil.create('select', '', container);
+            select.innerHTML = '<option value="">-- Sélectionnez un département --</option>';
+            for (const dept in departments) {
+              const option = L.DomUtil.create('option', '', select);
+              option.value = dept;
+              option.text = dept;
+            }
+
+            // Éviter que les clics sur le contrôle n'interfèrent avec la carte
+            L.DomEvent.disableClickPropagation(container);
+
+            // Ajouter un écouteur pour le changement de sélection
+            L.DomEvent.on(select, 'change', function(e) {
+              const selectedDept = e.target.value;
+              if (selectedDept) {
+                loadDepartment(selectedDept);
+              }
+            });
+
+            return container;
+          }
+        });
+
+        map.addControl(new DepartmentControl());
 
         // 7) Ajouter une couche d'informations
         const info = L.control();
@@ -150,8 +189,8 @@
             this._div.innerHTML = '<h4>Difficulté des Chemins</h4>' +  (props
                 ? `<b>${props.nom || props.difficulty_clean || 'N/A'}</b><br />
                    Difficulté: ${props.difficulty}<br />
-                   Pente Moyenne: ${props.slope_mean !== null ? props.slope_mean.toFixed(2) : 'N/A'}°<br />
-                   Pente Maximum: ${props.slope_max !== null ? props.slope_max.toFixed(2) : 'N/A'}°`
+                   Pente Moyenne: ${props.slope_mean !== null && props.slope_mean !== undefined ? props.slope_mean.toFixed(2) : 'N/A'}°<br />
+                   Pente Maximum: ${props.slope_max !== null && props.slope_max !== undefined ? props.slope_max.toFixed(2) : 'N/A'}°`
                 : 'Sélectionnez un chemin');
         };
 
@@ -189,29 +228,7 @@
 
         legend.addTo(map);
 
-        // 9) Charger le TopoJSON et préparer la couche GeoJSON
-        const respTopo = await fetch(topojsonUrl);
-        if(!respTopo.ok){
-          throw new Error("Fichier TopoJSON introuvable (ou lien GitHub Pages invalide).");
-        }
-        const topoData = await respTopo.json();
-
-        if(!topoData.objects){
-          throw new Error("Pas d'objet 'objects' dans le TopoJSON. Vérifiez votre fichier.");
-        }
-        // On prend le nom du premier objet si on ne le connaît pas
-        const topoObjectName = Object.keys(topoData.objects)[0];
-        const geoData = topojson.feature(topoData, topoData.objects[topoObjectName]);
-
-        console.log("GeoJSON Data:", geoData);
-        if (geoData.features.length === 0) {
-            throw new Error("Aucun feature trouvé dans le GeoJSON.");
-        }
-
-        // Vérifier les propriétés
-        console.log("Propriétés du premier feature:", geoData.features[0].properties);
-
-        // Palette de couleurs en fonction de 'difficulty'
+        // 9) Palette de couleurs en fonction de 'difficulty'
         const difficultyColors = {
           "inconnu": "gray",
           "très facile": "#00FF00",
@@ -221,46 +238,7 @@
           "très difficile": "#8B0000"
         };
 
-        // Indexer par difficulté
-        const featuresByDifficulty = {};
-        geoData.features.forEach(feature => {
-            const difficulty = feature.properties.difficulty;
-            if (!featuresByDifficulty[difficulty]) {
-                featuresByDifficulty[difficulty] = [];
-            }
-            featuresByDifficulty[difficulty].push(feature);
-        });
-
-        // Couche GeoJSON vide initialement
-        const geojsonLayer = L.geoJSON(null, {
-            style: function(feature){
-                const diff = feature.properties.difficulty;
-                return { 
-                    color: difficultyColors[diff] || "black",
-                    weight: 3,
-                    opacity: 1 
-                };
-            },
-            onEachFeature: function(feature, layer){
-                layer.on({
-                    mouseover: highlightFeature,
-                    mouseout: resetHighlight,
-                    click: zoomToFeature
-                });
-                layer.bindPopup(
-                  `<b>${feature.properties.nom || feature.properties.difficulty_clean || 'N/A'}</b><br />
-                   Difficulté: ${feature.properties.difficulty}<br />
-                   Pente Moyenne: ${feature.properties.slope_mean !== null ? feature.properties.slope_mean.toFixed(2) : 'N/A'}°<br />
-                   Pente Maximum: ${feature.properties.slope_max !== null ? feature.properties.slope_max.toFixed(2) : 'N/A'}°`
-                );
-            }
-        }).addTo(map);
-
-        // Ajouter la couche GeoJSON aux overlays et actualiser le contrôle des couches
-        overlayLayers["Chemins"] = geojsonLayer;
-        layerControl.addOverlay(geojsonLayer, "Chemins");
-
-        // Définir la fonction debounce
+        // Fonction debounce pour optimiser les performances lors du filtrage
         function debounce(func, delay) {
             let inDebounce;
             return function() {
@@ -270,9 +248,108 @@
                 inDebounce = setTimeout(() => func.apply(context, args), delay);
             }
         }
-        const debouncedUpdate = debounce(updateGeoJSONLayer, 300);
 
-        // Fonctions d'interactivité
+        // 10) Fonction pour charger un département
+        async function loadDepartment(dept) {
+            try {
+                // Supprimer les couches précédentes si elles existent
+                if (currentCheminsLayer) {
+                    layerControl.removeLayer(currentCheminsLayer);
+                    map.removeLayer(currentCheminsLayer);
+                }
+                if (currentLoamnessLayer) {
+                    layerControl.removeLayer(currentLoamnessLayer);
+                    map.removeLayer(currentLoamnessLayer);
+                }
+
+                // Charger le TopoJSON
+                const topojsonUrl = departments[dept].topojson_url;
+                const respTopo = await fetch(topojsonUrl);
+                if(!respTopo.ok){
+                  throw new Error(`Fichier TopoJSON introuvable pour le département ${dept}.`);
+                }
+                const topoData = await respTopo.json();
+
+                if(!topoData.objects){
+                  throw new Error(`Pas d'objet 'objects' dans le TopoJSON pour le département ${dept}.`);
+                }
+                // On prend le nom du premier objet si on ne le connaît pas
+                const topoObjectName = Object.keys(topoData.objects)[0];
+                const geoData = topojson.feature(topoData, topoData.objects[topoObjectName]);
+
+                console.log("GeoJSON Data:", geoData);
+                if (geoData.features.length === 0) {
+                    throw new Error("Aucun feature trouvé dans le GeoJSON.");
+                }
+
+                // Palette de couleurs en fonction de 'difficulty'
+                // Déjà définie plus haut
+
+                // Créer la couche GeoJSON
+                currentCheminsLayer = L.geoJSON(geoData, {
+                    style: function(feature){
+                        const diff = feature.properties.difficulty;
+                        return { 
+                            color: difficultyColors[diff] || "black",
+                            weight: 3,
+                            opacity: 1 
+                        };
+                    },
+                    onEachFeature: function(feature, layer){
+                        layer.on({
+                            mouseover: highlightFeature,
+                            mouseout: resetHighlight,
+                            click: zoomToFeature
+                        });
+                        layer.bindPopup(
+                          `<b>${feature.properties.nom || feature.properties.difficulty_clean || 'N/A'}</b><br />
+                           Difficulté: ${feature.properties.difficulty}<br />
+                           Pente Moyenne: ${feature.properties.slope_mean !== null && feature.properties.slope_mean !== undefined ? feature.properties.slope_mean.toFixed(2) : 'N/A'}°<br />
+                           Pente Maximum: ${feature.properties.slope_max !== null && feature.properties.slope_max !== undefined ? feature.properties.slope_max.toFixed(2) : 'N/A'}°`
+                        );
+                    }
+                }).addTo(map);
+
+                // Ajouter la couche Chemins aux overlays et au contrôle des couches
+                layerControl.addOverlay(currentCheminsLayer, "Chemins");
+
+                // Charger le Raster Loamness
+                const rasterUrl = departments[dept].raster_url;
+                const responseRaster = await fetch(rasterUrl);
+                if(!responseRaster.ok){
+                  throw new Error(`Fichier Raster Loamness introuvable pour le département ${dept}.`);
+                }
+                const arrayBuffer = await responseRaster.arrayBuffer();
+
+                const georaster = await parseGeoraster(arrayBuffer);
+
+                currentLoamnessLayer = new GeoRasterLayer({
+                  georaster: georaster,
+                  opacity: 0.6,
+                  pixelValuesToColorFn: values => {
+                    if (values[0] === null || isNaN(values[0])) return null;
+                    const loamness = values[0];
+                    if (loamness >= 95) return 'rgba(0, 0, 139, 0.6)';        // Bleu Très Foncé
+                    if (loamness >= 90) return 'rgba(0, 100, 0, 0.6)';        // Vert Foncé
+                    if (loamness >= 85) return 'rgba(34, 139, 34, 0.6)';       // Vert Moyen
+                    if (loamness >= 80) return 'rgba(144, 238, 144, 0.6)';     // Vert Clair
+                    return null; // < 80% => transparent
+                  },
+                  resolution: 256 // Ajustez la résolution si nécessaire
+                });
+
+                currentLoamnessLayer.addTo(map);
+
+                // Ajouter la couche Loamness aux overlays et au contrôle des couches
+                layerControl.addOverlay(currentLoamnessLayer, "Loamness");
+
+            } catch(err){
+                console.error(`Erreur lors du chargement du département ${dept}:`, err);
+                alert(`Erreur lors du chargement du département ${dept}: ${err.message}`);
+            }
+        }
+
+        // 11) Fonctions d'interactivité
         function highlightFeature(e) {
             const layer = e.target;
             layer.setStyle({
@@ -288,71 +365,14 @@
         }
 
         function resetHighlight(e) {
-            geojsonLayer.resetStyle(e.target);
+            if (currentCheminsLayer) {
+                currentCheminsLayer.resetStyle(e.target);
+            }
             info.update();
         }
 
         function zoomToFeature(e) {
             map.fitBounds(e.target.getBounds());
-        }
-
-        // 10) Charger le Raster Loamness et l'ajouter comme overlay optionnel
-        try {
-          const responseRaster = await fetch(rasterUrl);
-          if(!responseRaster.ok){
-            throw new Error("Fichier Raster Loamness introuvable ou lien invalide.");
-          }
-          const arrayBuffer = await responseRaster.arrayBuffer();
-          
-          const georaster = await parseGeoraster(arrayBuffer);
-      
-          rasterLayer = new GeoRasterLayer({
-            georaster: georaster,
-            opacity: 0.6,
-            pixelValuesToColorFn: values => {
-              if (values[0] === null || isNaN(values[0])) return null;
-              const loamness = values[0];
-              if (loamness >= 95) return 'rgba(0, 0, 139, 0.6)';        // Bleu Très Foncé
-              if (loamness >= 90) return 'rgba(0, 100, 0, 0.6)';        // Vert Foncé
-              if (loamness >= 85) return 'rgba(34, 139, 34, 0.6)';       // Vert Moyen
-              if (loamness >= 80) return 'rgba(144, 238, 144, 0.6)';     // Vert Clair
-              return null; // < 80% => transparent
-            },
-            resolution: 256 // Ajustez la résolution si nécessaire
-          });
-      
-          rasterLayer.addTo(map);
-
-          // Ajouter la couche Loamness aux overlays et actualiser le contrôle des couches
-          overlayLayers["Loamness"] = rasterLayer;
-          layerControl.addOverlay(rasterLayer, "Loamness");
-
-        } catch(err){
-          console.error("Erreur chargement Raster Loamness:", err);
-          alert("Erreur chargement Raster Loamness (voir console).");
-        }
-
-        // 11) Fonction de Mise à Jour de la Couche GeoJSON en Fonction des Filtres
-        function updateGeoJSONLayer() {
-            const checkedDifficulties = Array.from(
-              document.querySelectorAll('.filter-control input[type=checkbox]:checked')
-            ).map(cb => cb.value);
-            
-            geojsonLayer.clearLayers();
-            
-            let filteredFeatures = [];
-            checkedDifficulties.forEach(difficulty => {
-                if (featuresByDifficulty[difficulty]) {
-                    filteredFeatures = filteredFeatures.concat(featuresByDifficulty[difficulty]);
-                }
-            });
-            
-            const filteredData = {
-                "type": "FeatureCollection",
-                "features": filteredFeatures
-            };
-            
-            geojsonLayer.addData(filteredData);
         }
 
         // 12) Contrôle de Filtrage
@@ -378,8 +398,35 @@
         };
         filterControl.addTo(map);
 
-        // Initialiser la couche Chemins + Filtres
-        updateGeoJSONLayer();
+        // 13) Fonction de Mise à Jour de la Couche GeoJSON en Fonction des Filtres
+        const debouncedUpdate = debounce(updateGeoJSONLayer, 300);
+
+        function updateGeoJSONLayer() {
+            if (!currentCheminsLayer) return;
+
+            const checkedDifficulties = Array.from(
+              document.querySelectorAll('.filter-control input[type=checkbox]:checked')
+            ).map(cb => cb.value);
+            
+            currentCheminsLayer.clearLayers();
+            
+            let filteredFeatures = [];
+            geoData.features.forEach(feature => {
+                if (checkedDifficulties.includes(feature.properties.difficulty)) {
+                    filteredFeatures.push(feature);
+                }
+            });
+
+            const filteredData = {
+                "type": "FeatureCollection",
+                "features": filteredFeatures
+            };
+            
+            currentCheminsLayer.addData(filteredData);
+        }
+
+        // 14) Charger le département par défaut au chargement de la page
+        loadDepartment(defaultDept);
 
       } catch(err){
         console.error("Erreur générale:", err);

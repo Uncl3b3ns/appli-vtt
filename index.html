@@ -42,11 +42,14 @@
 <script src="https://cdn.jsdelivr.net/npm/georaster@1.6.0/dist/georaster.browser.bundle.min.js"></script>
 <!-- GeoRasterLayer for Leaflet JS (version 2.3.1) -->
 <script src="https://unpkg.com/georaster-layer-for-leaflet/dist/georaster-layer-for-leaflet.min.js"></script>
+<!-- TopoJSON JS -->
+<script src="https://unpkg.com/topojson@3/dist/topojson.min.js"></script>
 
 <script>
     // Vérification du chargement des bibliothèques
     console.log("Georaster loaded:", typeof parseGeoraster); // Doit afficher 'function'
     console.log("GeoRasterLayer loaded:", typeof GeoRasterLayer); // Doit afficher 'function'
+    console.log("TopoJSON loaded:", typeof topojson); // Doit afficher 'object'
 
     (async function(){
       try {
@@ -56,6 +59,9 @@
         }
         if (typeof GeoRasterLayer !== 'function') {
           throw new Error("GeoRasterLayer n'est pas défini. Vérifiez le chargement de la bibliothèque GeoRasterLayer.");
+        }
+        if (typeof topojson !== 'object') {
+          throw new Error("topojson n'est pas défini. Vérifiez le chargement de la bibliothèque TopoJSON.");
         }
 
         // 1) Charger la config locale

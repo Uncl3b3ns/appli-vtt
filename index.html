@@ -78,15 +78,17 @@
         }
 
         // 1) Charger la config locale
+        // Ici, on charge config/Hérault_config.json
+        // Dedans, on a "topojson_url": "https://drive.google.com/uc?export=download&id=1hBlnAL6Mm-ChjTWL_pRg5gyD5VuDexf1"
         const responseConfig = await fetch('config/Hérault_config.json');  // Remplacez 'Hérault' par votre département
         if(!responseConfig.ok){
           throw new Error("Erreur lors du chargement du fichier de configuration.");
         }
         const config = await responseConfig.json();
       
-        const topojsonUrl = config.topojson_url; // ex: "https://Uncl3b3ns.github.io/appli-vtt/data/Hérault_Chemins_difficulte.topojson"
-        const rasterUrl   = config.raster_url;   // ex: "https://Uncl3b3ns.github.io/appli-vtt/raster/Hérault_Loamness.tif"
-      
+        const topojsonUrl = config.topojson_url; // => lien Google Drive direct
+        const rasterUrl   = config.raster_url;   // => par ex. GitHub Pages
+
         // 2) Initialiser la carte
         const map = L.map('map').setView([43.6, 3.87], 8); // Centrez selon votre département
       
@@ -99,15 +101,14 @@
         const info = L.control();
       
         info.onAdd = function (map) {
-            this._div = L.DomUtil.create('div', 'info'); // Création d'un div avec la classe 'info'
+            this._div = L.DomUtil.create('div', 'info');
             this.update();
             return this._div;
         };
       
-        // Méthode pour mettre à jour le contenu de l'info
         info.update = function (props) {
-            this._div.innerHTML = '<h4>Difficulté des Chemins</h4>' +  (props ?
-                '<b>' + (props.nom || props.difficulty_clean || 'N/A') + '</b><br />' + props.difficulty
+            this._div.innerHTML = '<h4>Difficulté des Chemins</h4>' +  (props
+                ? '<b>' + (props.nom || props.difficulty_clean || 'N/A') + '</b><br />' + props.difficulty
                 : 'Sélectionnez un chemin');
         };
       
@@ -119,15 +120,13 @@
         legend.onAdd = function (map) {
             const div = L.DomUtil.create('div', 'info legend'),
                 grades = ["inconnu", "très facile", "facile", "modéré", "difficile", "très difficile"],
-                colors = ["gray", "#00FF00", "#FFFF00", "#FFA500", "#FF0000", "#8B0000"]; // Couleurs ajustées
+                colors = ["gray", "#00FF00", "#FFFF00", "#FFA500", "#FF0000", "#8B0000"];
     
-            // Générer les étiquettes
             for (let i = 0; i < grades.length; i++) {
                 div.innerHTML +=
                     '<i style="background:' + colors[i] + '"></i> ' +
                     grades[i] + '<br>';
             }
-      
             return div;
         };
       
@@ -136,39 +135,37 @@
         // 5) Charger le TopoJSON et préparer la couche GeoJSON
         const respTopo = await fetch(topojsonUrl);
         if(!respTopo.ok){
-          throw new Error("Fichier TopoJSON introuvable.");
+          throw new Error("Fichier TopoJSON introuvable (ou lien Google Drive invalide).");
         }
         const topoData = await respTopo.json();
       
-        // Convertir TopoJSON en GeoJSON
         if(!topoData.objects){
-          throw new Error("Pas d'objet 'objects' dans le TopoJSON.");
+          throw new Error("Pas d'objet 'objects' dans le TopoJSON. Vérifiez votre fichier.");
         }
-        // Remplacez 'features' par le nom correct de l'objet dans votre TopoJSON
-        const topoObjectName = Object.keys(topoData.objects)[0]; // Dynamique selon votre TopoJSON
+        // On prend le nom du premier objet si on ne le connaît pas
+        const topoObjectName = Object.keys(topoData.objects)[0];
         const geoData = topojson.feature(topoData, topoData.objects[topoObjectName]);
       
-        console.log("GeoJSON Data:", geoData); // Pour vérifier les données
+        console.log("GeoJSON Data:", geoData);
         if (geoData.features.length === 0) {
             throw new Error("Aucun feature trouvé dans le GeoJSON.");
         }
       
-        // Vérifier les propriétés d'un feature
+        // Vérifier les propriétés
         console.log("Propriétés du premier feature:", geoData.features[0].properties);
       
-        // Définir une palette de couleurs basée sur la difficulté
+        // Palette de couleurs en fonction de 'difficulty'
         const difficultyColors = {
           "inconnu": "gray",
-          "très facile": "#00FF00", // Vert vif
-          "facile": "#FFFF00",      // Jaune
-          "modéré": "#FFA500",      // Orange
-          "difficile": "#FF0000",   // Rouge
-          "très difficile": "#8B0000" // Rouge foncé
+          "très facile": "#00FF00",
+          "facile": "#FFFF00",
+          "modéré": "#FFA500",
+          "difficile": "#FF0000",
+          "très difficile": "#8B0000"
         };
       
-        // Pré-indexer les features par difficulté pour optimisation
+        // Indexer par difficulté
         const featuresByDifficulty = {};
-  
         geoData.features.forEach(feature => {
             const difficulty = feature.properties.difficulty;
             if (!featuresByDifficulty[difficulty]) {
@@ -177,13 +174,13 @@
             featuresByDifficulty[difficulty].push(feature);
         });
   
-        // Créer une couche GeoJSON vide
-        const geojsonLayer = L.geoJSON(null, { // Initialement vide
+        // Couche GeoJSON vide initialement
+        const geojsonLayer = L.geoJSON(null, {
             style: function(feature){
-                const difficulty = feature.properties.difficulty;
+                const diff = feature.properties.difficulty;
                 return { 
-                    color: difficultyColors[difficulty] || "black", 
-                    weight: 3, // Épaisseur augmentée pour meilleure visibilité
+                    color: difficultyColors[diff] || "black",
+                    weight: 3,
                     opacity: 1 
                 };
             },
@@ -193,12 +190,13 @@
                     mouseout: resetHighlight,
                     click: zoomToFeature
                 });
-                layer.bindPopup(`<b>${feature.properties.nom || feature.properties.difficulty_clean || 'N/A'}</b><br>Difficulté: ${feature.properties.difficulty}`);
+                layer.bindPopup(
+                  `<b>${feature.properties.nom || feature.properties.difficulty_clean || 'N/A'}</b><br>Difficulté: ${feature.properties.difficulty}`
+                );
             }
         }).addTo(map);
       
-        // 6) Définir la Fonction `debouncedUpdate` Avant son Utilisation
-        // Fonction debounce pour éviter les appels trop fréquents
+        // Définir la fonction debounce
         function debounce(func, delay) {
             let inDebounce;
             return function() {
@@ -208,24 +206,20 @@
                 inDebounce = setTimeout(() => func.apply(context, args), delay);
             }
         }
-      
         const debouncedUpdate = debounce(updateGeoJSONLayer, 300);
       
-        // 7) Fonctions d'interactivité
+        // Fonctions d'interactivité
         function highlightFeature(e) {
             const layer = e.target;
-    
             layer.setStyle({
                 weight: 5,
                 color: '#666',
                 dashArray: '',
                 fillOpacity: 0.7
             });
-    
             if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
                 layer.bringToFront();
             }
-    
             info.update(layer.feature.properties);
         }
     
@@ -238,8 +232,7 @@
             map.fitBounds(e.target.getBounds());
         }
       
-        // 8) Ajouter les Contrôles de Filtrage
-        // Créer un contrôle de filtrage
+        // 6) Contrôle de Filtrage
         const filterControl = L.control({position: 'topright'});
   
         filterControl.onAdd = function (map) {
@@ -253,25 +246,20 @@
                 <label><input type="checkbox" value="difficile" checked> Difficile</label><br>
                 <label><input type="checkbox" value="très difficile" checked> Très Difficile</label><br>
             `;
-            
-            // Empêcher l'interaction avec la carte lorsque l'utilisateur interagit avec les filtres
             L.DomEvent.disableClickPropagation(div);
-            
-            // Ajouter des écouteurs d'événements aux cases à cocher
             const checkboxes = div.querySelectorAll('input[type=checkbox]');
             checkboxes.forEach(checkbox => {
                 checkbox.addEventListener('change', debouncedUpdate);
             });
-            
             return div;
         };
-  
         filterControl.addTo(map);
   
-        // 9) Fonction de Mise à Jour de la Couche GeoJSON en Fonction des Filtres
+        // 7) Fonction de Mise à Jour de la Couche GeoJSON en Fonction des Filtres
         function updateGeoJSONLayer() {
-            const checkedDifficulties = Array.from(document.querySelectorAll('.filter-control input[type=checkbox]:checked'))
-                .map(cb => cb.value);
+            const checkedDifficulties = Array.from(
+              document.querySelectorAll('.filter-control input[type=checkbox]:checked')
+            ).map(cb => cb.value);
             
             geojsonLayer.clearLayers();
             
@@ -290,11 +278,11 @@
             geojsonLayer.addData(filteredData);
         }
   
-        // 10) Charger le Raster Loamness et l'ajouter à la carte
+        // 8) Charger le Raster Loamness et l'ajouter
         try {
           const responseRaster = await fetch(rasterUrl);
           if(!responseRaster.ok){
-            throw new Error("Fichier Raster Loamness introuvable.");
+            throw new Error("Fichier Raster Loamness introuvable ou lien invalide.");
           }
           const arrayBuffer = await responseRaster.arrayBuffer();
           
@@ -306,18 +294,18 @@
             pixelValuesToColorFn: values => {
               if (values[0] === null || isNaN(values[0])) return null;
               const loam = values[0];
-              if (loam >= 95) return 'rgba(0, 0, 139, 0.6)';        // Bleu Très Foncé pour 95-100%
-              if (loam >= 90) return 'rgba(0, 100, 0, 0.6)';        // Vert Foncé pour 90-95%
-              if (loam >= 85) return 'rgba(34, 139, 34, 0.6)';       // Vert Moyen pour 85-90%
-              if (loam >= 80) return 'rgba(144, 238, 144, 0.6)';     // Vert Clair pour 80-85%
-              return null; // Masquer les zones < 80%
+              if (loam >= 95) return 'rgba(0, 0, 139, 0.6)';        
+              if (loam >= 90) return 'rgba(0, 100, 0, 0.6)';        
+              if (loam >= 85) return 'rgba(34, 139, 34, 0.6)';      
+              if (loam >= 80) return 'rgba(144, 238, 144, 0.6)';    
+              return null; // < 80% => transparent
             },
-            resolution: 256 // Ajustez la résolution si nécessaire
+            resolution: 256
           });
       
           rasterLayer.addTo(map);
       
-          // Ajouter une légende pour le raster (zones ≥ 80%)
+          // Légende du raster Loamness
           const rasterLegend = L.control({position: 'bottomleft'});
       
           rasterLegend.onAdd = function (map) {
@@ -325,25 +313,23 @@
                   grades = [80, 85, 90, 95, 100],
                   labels = ["80% – 85%", "85% – 90%", "90% – 95%", "95% – 100%"],
                   colors = [
-                      "rgba(144, 238, 144, 0.6)", // Vert Clair
-                      "rgba(34, 139, 34, 0.6)",   // Vert Moyen
-                      "rgba(0, 100, 0, 0.6)",     // Vert Foncé
-                      "rgba(0, 0, 139, 0.6)"      // Bleu Très Foncé
+                      "rgba(144, 238, 144, 0.6)",
+                      "rgba(34, 139, 34, 0.6)",
+                      "rgba(0, 100, 0, 0.6)",
+                      "rgba(0, 0, 139, 0.6)"
                   ];
       
-              // Générer les étiquettes
               for (let i = 0; i < labels.length; i++) {
                   div.innerHTML +=
                       '<i style="background:' + colors[i] + '"></i> ' +
                       labels[i] + '<br>';
               }
-      
               return div;
           };
       
           rasterLegend.addTo(map);
       
-          // Initialiser la couche GeoJSON avec tous les filtres cochés
+          // Initialiser la couche Chemins + Filtres
           updateGeoJSONLayer();
       
         } catch(err){

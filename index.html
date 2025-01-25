@@ -172,7 +172,7 @@
               option.value = dept;
               option.text = dept;
               if (dept === defaultDept) {
-                  option.selected = true;
+                  option.selected = true; // Sélectionner Hérault par défaut
               }
             }
 
@@ -442,6 +442,10 @@
         // 15) Charger le département par défaut au chargement de la page
         loadDepartment(defaultDept);
 
+      } catch(err){
+        console.error("Erreur générale:", err);
+        alert("Erreur générale lors du chargement de la carte: " + err.message);
+      }
     })();
 </script>
 

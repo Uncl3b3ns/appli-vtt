@@ -97,9 +97,9 @@
             raster_url: "https://Uncl3b3ns.github.io/appli-vtt/raster/Hérault_Loamness.tif"
           },
           // Ajoutez d'autres départements ici
-          // "AutreDépartement": {
-          //   topojson_url: "https://Uncl3b3ns.github.io/appli-vtt/data/AutreDépartement_Chemins_difficulte.topojson",
-          //   raster_url: "https://Uncl3b3ns.github.io/appli-vtt/raster/AutreDépartement_Loamness.tif"
+          // "Gard": {
+          //   topojson_url: "https://Uncl3b3ns.github.io/appli-vtt/data/Gard_Chemins_difficulte.topojson",
+          //   raster_url: "https://Uncl3b3ns.github.io/appli-vtt/raster/Gard_Loamness.tif"
           // }
         };
 
@@ -143,7 +143,20 @@
 
         const layerControl = L.control.layers(baseLayers, overlayLayers).addTo(map);
 
-        // 6) Ajouter un contrôle de sélection de département
+        // 6) Définir la fonction debounce (doit être définie avant utilisation)
+        function debounce(func, delay) {
+            let inDebounce;
+            return function() {
+                const context = this;
+                const args = arguments;
+                clearTimeout(inDebounce);
+                inDebounce = setTimeout(() => func.apply(context, args), delay);
+            }
+        }
+
+        const debouncedUpdate = debounce(updateGeoJSONLayer, 300);
+
+        // 7) Ajouter un contrôle de sélection de département
         const DepartmentControl = L.Control.extend({
           options: {
             position: 'topright'
@@ -176,7 +189,7 @@
 
         map.addControl(new DepartmentControl());
 
-        // 7) Ajouter une couche d'informations
+        // 8) Ajouter une couche d'informations
         const info = L.control();
 
         info.onAdd = function (map) {
@@ -196,7 +209,7 @@
 
         info.addTo(map);
 
-        // 8) Créer une légende unique pour tous les éléments
+        // 9) Créer une légende unique pour tous les éléments
         const legend = L.control({position: 'bottomright'});
 
         legend.onAdd = function (map) {
@@ -228,7 +241,7 @@
 
         legend.addTo(map);
 
-        // 9) Palette de couleurs en fonction de 'difficulty'
+        // 10) Palette de couleurs en fonction de 'difficulty'
         const difficultyColors = {
           "inconnu": "gray",
           "très facile": "#00FF00",
@@ -238,18 +251,10 @@
           "très difficile": "#8B0000"
         };
 
-        // Fonction debounce pour optimiser les performances lors du filtrage
-        function debounce(func, delay) {
-            let inDebounce;
-            return function() {
-                const context = this;
-                const args = arguments;
-                clearTimeout(inDebounce);
-                inDebounce = setTimeout(() => func.apply(context, args), delay);
-            }
-        }
+        // 11) Ajouter une couche GeoJSON et Raster pour le département sélectionné
+        let geoData = null; // Variable globale pour stocker les données GeoJSON
 
-        // 10) Fonction pour charger un département
+        // Fonction pour charger un département
         async function loadDepartment(dept) {
             try {
                 // Supprimer les couches précédentes si elles existent
@@ -275,15 +280,12 @@
                 }
                 // On prend le nom du premier objet si on ne le connaît pas
                 const topoObjectName = Object.keys(topoData.objects)[0];
-                const geoData = topojson.feature(topoData, topoData.objects[topoObjectName]);
+                geoData = topojson.feature(topoData, topoData.objects[topoObjectName]);
 
                 console.log("GeoJSON Data:", geoData);
                 if (geoData.features.length === 0) {
                     throw new Error("Aucun feature trouvé dans le GeoJSON.");
                 }
-
-                // Palette de couleurs en fonction de 'difficulty'
-                // Déjà définie plus haut
 
                 // Créer la couche GeoJSON
                 currentCheminsLayer = L.geoJSON(geoData, {
@@ -343,13 +345,16 @@
                 // Ajouter la couche Loamness aux overlays et au contrôle des couches
                 layerControl.addOverlay(currentLoamnessLayer, "Loamness");
 
+                // Appliquer les filtres actuels après chargement
+                updateGeoJSONLayer();
+
             } catch(err){
                 console.error(`Erreur lors du chargement du département ${dept}:`, err);
                 alert(`Erreur lors du chargement du département ${dept}: ${err.message}`);
             }
         }
 
-        // 11) Fonctions d'interactivité
+        // 12) Fonctions d'interactivité
         function highlightFeature(e) {
             const layer = e.target;
             layer.setStyle({
@@ -375,7 +380,7 @@
             map.fitBounds(e.target.getBounds());
         }
 
-        // 12) Contrôle de Filtrage
+        // 13) Contrôle de Filtrage
         const filterControl = L.control({position: 'topright'});
 
         filterControl.onAdd = function (map) {
@@ -398,11 +403,9 @@
         };
         filterControl.addTo(map);
 
-        // 13) Fonction de Mise à Jour de la Couche GeoJSON en Fonction des Filtres
-        const debouncedUpdate = debounce(updateGeoJSONLayer, 300);
-
+        // 14) Fonction de Mise à Jour de la Couche GeoJSON en Fonction des Filtres
         function updateGeoJSONLayer() {
-            if (!currentCheminsLayer) return;
+            if (!currentCheminsLayer || !geoData) return;
 
             const checkedDifficulties = Array.from(
               document.querySelectorAll('.filter-control input[type=checkbox]:checked')
@@ -425,7 +428,7 @@
             currentCheminsLayer.addData(filteredData);
         }
 
-        // 14) Charger le département par défaut au chargement de la page
+        // 15) Charger le département par défaut au chargement de la page
         loadDepartment(defaultDept);
 
       } catch(err){

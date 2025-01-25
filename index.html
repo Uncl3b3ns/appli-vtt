@@ -7,7 +7,6 @@
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
     <style>
       /* Minimal styling */
       body, html { margin:0; padding:0; }
@@ -49,9 +48,17 @@
 <script src="https://unpkg.com/georaster-layer-for-leaflet@2.3.1/dist/georaster-layer-for-leaflet.browser.min.js"></script>
 
 <script>
-// Vérifications de chargement des bibliothèques
-console.log("Georaster loaded:", typeof parseGeoraster);
-console.log("GeoRasterLayer loaded:", typeof GeoRasterLayer);
+// Vérification du chargement des bibliothèques
+console.log("Georaster loaded:", typeof parseGeoraster); // devrait être 'function'
+console.log("GeoRasterLayer loaded:", typeof GeoRasterLayer); // devrait être 'function'
+
+// Ajout de vérifications supplémentaires
+if (typeof parseGeoraster !== 'function') {
+    console.error("parseGeoraster n'est pas défini. Vérifiez le chargement de la bibliothèque Georaster.");
+}
+if (typeof GeoRasterLayer !== 'function') {
+    console.error("GeoRasterLayer n'est pas défini. Vérifiez le chargement de la bibliothèque GeoRasterLayer.");
+}
 
 (async function(){
   try {
@@ -187,11 +194,6 @@ console.log("GeoRasterLayer loaded:", typeof GeoRasterLayer);
       }
       const arrayBuffer = await responseRaster.arrayBuffer();
       
-      // Vérifiez que parseGeoraster est défini
-      if (typeof parseGeoraster !== 'function') {
-          throw new Error("parseGeoraster n'est pas défini. Vérifiez le chargement de la bibliothèque Georaster.");
-      }
-
       const georaster = await parseGeoraster(arrayBuffer);
   
       const rasterLayer = new GeoRasterLayer({

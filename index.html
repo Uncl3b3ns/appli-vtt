@@ -5,7 +5,7 @@
     <title>Carte Chemins et Loamness</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Leaflet CSS (sans integrity/crossorigin) -->
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
     <style>
@@ -37,17 +37,22 @@
 
 <div id="map"></div>
 
-<!-- Leaflet JS (sans integrity/crossorigin) -->
+<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <!-- D3.js -->
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <!-- topojson-client -->
 <script src="https://unpkg.com/topojson-client@3"></script>
-<!-- Georaster and Leaflet-Georaster for raster handling -->
+<!-- Georaster JS -->
 <script src="https://unpkg.com/georaster@1.8.0/dist/georaster.browser.min.js"></script>
+<!-- GeoRasterLayer for Leaflet JS -->
 <script src="https://unpkg.com/georaster-layer-for-leaflet@2.3.1/dist/georaster-layer-for-leaflet.browser.min.js"></script>
 
 <script>
+// Vérifications de chargement des bibliothèques
+console.log("Georaster loaded:", typeof parseGeoraster);
+console.log("GeoRasterLayer loaded:", typeof GeoRasterLayer);
+
 (async function(){
   try {
     // 1) Charger la config locale

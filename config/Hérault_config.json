@@ -1,7 +1,4 @@
 {
-  // On prend le lien direct (uc?export=download) vers le topojson
   "topojson_url": "https://drive.google.com/uc?export=download&id=1hBlnAL6Mm-ChjTWL_pRg5gyD5VuDexf1",
-  
-  // Raster Loamness : vous pouvez garder le lien GitHub si le .tif est sur GitHu
   "raster_url": "https://Uncl3b3ns.github.io/appli-vtt/raster/Hérault_Loamness.tif"
 }

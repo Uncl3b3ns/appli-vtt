@@ -2,19 +2,28 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Test Georaster</title>
+    <title>Test Georaster et GeoRasterLayer</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: Arial, sans-serif; }
+    </style>
 </head>
 <body>
-    <h1>Test Georaster</h1>
+    <h1>Test Georaster et GeoRasterLayer</h1>
 
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Georaster JS -->
     <script src="https://unpkg.com/georaster@1.9.0/dist/georaster.browser.min.js"></script>
     <!-- GeoRasterLayer for Leaflet JS -->
     <script src="https://unpkg.com/georaster-layer-for-leaflet@3.0.1/dist/georaster-layer-for-leaflet.browser.min.js"></script>
     
     <script>
-      console.log("Georaster loaded:", typeof parseGeoraster); // Doit afficher 'function'
-      console.log("GeoRasterLayer loaded:", typeof GeoRasterLayer); // Doit afficher 'function'
+        // Vérification du chargement des bibliothèques
+        console.log("Georaster loaded:", typeof parseGeoraster); // Doit afficher 'function'
+        console.log("GeoRasterLayer loaded:", typeof GeoRasterLayer); // Doit afficher 'function'
     </script>
 </body>
 </html>
+

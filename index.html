@@ -42,211 +42,211 @@
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <!-- topojson-client -->
 <script src="https://unpkg.com/topojson-client@3"></script>
-<!-- Georaster JS -->
-<script src="https://unpkg.com/georaster@1.8.0/dist/georaster.browser.min.js"></script>
-<!-- GeoRasterLayer for Leaflet JS -->
-<script src="https://unpkg.com/georaster-layer-for-leaflet@2.3.1/dist/georaster-layer-for-leaflet.browser.min.js"></script>
+<!-- Georaster JS (version 1.9.0) -->
+<script src="https://unpkg.com/georaster@1.9.0/dist/georaster.browser.min.js"></script>
+<!-- GeoRasterLayer for Leaflet JS (version 3.0.1) -->
+<script src="https://unpkg.com/georaster-layer-for-leaflet@3.0.1/dist/georaster-layer-for-leaflet.browser.min.js"></script>
 
 <script>
-// Vérification du chargement des bibliothèques
-console.log("Georaster loaded:", typeof parseGeoraster); // devrait être 'function'
-console.log("GeoRasterLayer loaded:", typeof GeoRasterLayer); // devrait être 'function'
+    // Vérification du chargement des bibliothèques
+    console.log("Georaster loaded:", typeof parseGeoraster); // devrait afficher 'function'
+    console.log("GeoRasterLayer loaded:", typeof GeoRasterLayer); // devrait afficher 'function'
 
-// Ajout de vérifications supplémentaires
-if (typeof parseGeoraster !== 'function') {
-    console.error("parseGeoraster n'est pas défini. Vérifiez le chargement de la bibliothèque Georaster.");
-}
-if (typeof GeoRasterLayer !== 'function') {
-    console.error("GeoRasterLayer n'est pas défini. Vérifiez le chargement de la bibliothèque GeoRasterLayer.");
-}
-
-(async function(){
-  try {
-    // 1) Charger la config locale
-    const responseConfig = await fetch('config/Hérault_config.json');  // Remplacez 'Hérault' par votre département
-    if(!responseConfig.ok){
-      throw new Error("Erreur lors du chargement du fichier de configuration.");
-    }
-    const config = await responseConfig.json();
-  
-    const topojsonUrl = config.topojson_url; // ex: "https://Uncl3b3ns.github.io/appli-vtt/data/Hérault_Chemins_difficulte.topojson"
-    const rasterUrl   = config.raster_url;   // ex: "https://Uncl3b3ns.github.io/appli-vtt/raster/Hérault_Loamness.tif"
-  
-    // 2) Initialiser la carte
-    const map = L.map('map').setView([43.6, 3.87], 8); // Centrez selon votre département
-  
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom:19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-  
-    // 3) Ajouter une couche d'informations
-    const info = L.control();
-  
-    info.onAdd = function (map) {
-        this._div = L.DomUtil.create('div', 'info'); // Création d'un div avec la classe 'info'
-        this.update();
-        return this._div;
-    };
-  
-    // Méthode pour mettre à jour le contenu de l'info
-    info.update = function (props) {
-        this._div.innerHTML = '<h4>Difficulté des Chemins</h4>' +  (props ?
-            '<b>' + props.nom + '</b><br />' + props.difficulty
-            : 'Sélectionnez un chemin');
-    };
-  
-    info.addTo(map);
-  
-    // 4) Créer une légende
-    const legend = L.control({position: 'bottomright'});
-  
-    legend.onAdd = function (map) {
-  
-        const div = L.DomUtil.create('div', 'info legend'),
-            grades = ["inconnu", "très facile", "facile", "modéré", "difficile", "très difficile"],
-            colors = ["gray", "green", "yellow", "orange", "red", "darkred"];
-  
-        // Générer les étiquettes
-        for (let i = 0; i < grades.length; i++) {
-            div.innerHTML +=
-                '<i style="background:' + colors[i] + '"></i> ' +
-                grades[i] + '<br>';
+    (async function(){
+      try {
+        // Vérifiez que les bibliothèques sont chargées
+        if (typeof parseGeoraster !== 'function') {
+          throw new Error("parseGeoraster n'est pas défini. Vérifiez le chargement de la bibliothèque Georaster.");
         }
-  
-        return div;
-    };
-  
-    legend.addTo(map);
-  
-    // 5) Charger le TopoJSON et ajouter la couche GeoJSON
-    const respTopo = await fetch(topojsonUrl);
-    if(!respTopo.ok){
-      throw new Error("Fichier TopoJSON introuvable.");
-    }
-    const topoData = await respTopo.json();
-  
-    // Convertir TopoJSON en GeoJSON
-    if(!topoData.objects){
-      throw new Error("Pas d'objet 'objects' dans le TopoJSON.");
-    }
-    // Remplacez 'features' par le nom correct de l'objet dans votre TopoJSON
-    const topoObjectName = Object.keys(topoData.objects)[0]; // Dynamique selon votre TopoJSON
-    const geoData = topojson.feature(topoData, topoData.objects[topoObjectName]);
-  
-    // Définir une palette de couleurs basée sur la difficulté
-    const difficultyColors = {
-      "inconnu": "gray",
-      "très facile": "green",
-      "facile": "yellow",
-      "modéré": "orange",
-      "difficile": "red",
-      "très difficile": "darkred"
-    };
-  
-    // Créer une couche GeoJSON avec des styles basés sur la difficulté
-    const geojsonLayer = L.geoJSON(geoData, {
-      style: function(feature){
-        const difficulty = feature.properties.difficulty;
-        return { color: difficultyColors[difficulty] || "black", weight: 2 };
-      },
-      onEachFeature: function(feature, layer){
-        layer.on({
-          mouseover: highlightFeature,
-          mouseout: resetHighlight,
-          click: zoomToFeature
-        });
-      }
-    }).addTo(map);
-  
-    // 6) Fonctions d'interactivité
-    function highlightFeature(e) {
-        const layer = e.target;
-
-        layer.setStyle({
-            weight: 5,
-            color: '#666',
-            dashArray: '',
-            fillOpacity: 0.7
-        });
-
-        if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-            layer.bringToFront();
+        if (typeof GeoRasterLayer !== 'function') {
+          throw new Error("GeoRasterLayer n'est pas défini. Vérifiez le chargement de la bibliothèque GeoRasterLayer.");
         }
 
-        info.update(layer.feature.properties);
-    }
-
-    function resetHighlight(e) {
-        geojsonLayer.resetStyle(e.target);
-        info.update();
-    }
-
-    function zoomToFeature(e) {
-        map.fitBounds(e.target.getBounds());
-    }
-  
-    // 7) Charger le Raster Loamness et l'ajouter à la carte
-    try {
-      const responseRaster = await fetch(rasterUrl);
-      if(!responseRaster.ok){
-        throw new Error("Fichier Raster Loamness introuvable.");
-      }
-      const arrayBuffer = await responseRaster.arrayBuffer();
+        // 1) Charger la config locale
+        const responseConfig = await fetch('config/Hérault_config.json');  // Remplacez 'Hérault' par votre département
+        if(!responseConfig.ok){
+          throw new Error("Erreur lors du chargement du fichier de configuration.");
+        }
+        const config = await responseConfig.json();
       
-      const georaster = await parseGeoraster(arrayBuffer);
-  
-      const rasterLayer = new GeoRasterLayer({
-        georaster: georaster,
-        opacity: 0.6,
-        pixelValuesToColorFn: values => {
-          if (values[0] === null || isNaN(values[0])) return null;
-          // Définir une couleur basée sur la valeur de loamness
-          const loam = values[0];
-          if (loam >= 80) return 'rgba(0, 255, 0, 0.6)';       // Vert pour élevé
-          if (loam >= 60) return 'rgba(173, 255, 47, 0.6)';  // Jaune-vert
-          if (loam >= 40) return 'rgba(255, 255, 0, 0.6)';    // Jaune
-          if (loam >= 20) return 'rgba(255, 165, 0, 0.6)';    // Orange
-          return 'rgba(255, 0, 0, 0.6)';                       // Rouge pour faible
-        },
-        resolution: 256 // Ajustez la résolution si nécessaire
-      });
-  
-      rasterLayer.addTo(map);
-  
-      // Ajouter une légende pour le raster
-      const rasterLegend = L.control({position: 'bottomleft'});
-  
-      rasterLegend.onAdd = function (map) {
-  
-          const div = L.DomUtil.create('div', 'info legend'),
-              grades = [0, 20, 40, 60, 80, 100],
-              labels = ["Très faible", "Faible", "Modéré", "Élevé", "Très élevé", "Très élevé"],
-              colors = ["rgba(255, 0, 0, 0.6)", "rgba(255, 165, 0, 0.6)", "rgba(255, 255, 0, 0.6)",
-                        "rgba(173, 255, 47, 0.6)", "rgba(0, 255, 0, 0.6)", "rgba(0, 255, 0, 0.6)"];
-  
-          // Générer les étiquettes
-          for (let i = 0; i < grades.length; i++) {
-              div.innerHTML +=
-                  '<i style="background:' + colors[i] + '"></i> ' +
-                  grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+        const topojsonUrl = config.topojson_url; // ex: "https://Uncl3b3ns.github.io/appli-vtt/data/Hérault_Chemins_difficulte.topojson"
+        const rasterUrl   = config.raster_url;   // ex: "https://Uncl3b3ns.github.io/appli-vtt/raster/Hérault_Loamness.tif"
+      
+        // 2) Initialiser la carte
+        const map = L.map('map').setView([43.6, 3.87], 8); // Centrez selon votre département
+      
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom:19,
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+      
+        // 3) Ajouter une couche d'informations
+        const info = L.control();
+      
+        info.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info'); // Création d'un div avec la classe 'info'
+            this.update();
+            return this._div;
+        };
+      
+        // Méthode pour mettre à jour le contenu de l'info
+        info.update = function (props) {
+            this._div.innerHTML = '<h4>Difficulté des Chemins</h4>' +  (props ?
+                '<b>' + props.nom + '</b><br />' + props.difficulty
+                : 'Sélectionnez un chemin');
+        };
+      
+        info.addTo(map);
+      
+        // 4) Créer une légende
+        const legend = L.control({position: 'bottomright'});
+      
+        legend.onAdd = function (map) {
+      
+            const div = L.DomUtil.create('div', 'info legend'),
+                grades = ["inconnu", "très facile", "facile", "modéré", "difficile", "très difficile"],
+                colors = ["gray", "green", "yellow", "orange", "red", "darkred"];
+      
+            // Générer les étiquettes
+            for (let i = 0; i < grades.length; i++) {
+                div.innerHTML +=
+                    '<i style="background:' + colors[i] + '"></i> ' +
+                    grades[i] + '<br>';
+            }
+      
+            return div;
+        };
+      
+        legend.addTo(map);
+      
+        // 5) Charger le TopoJSON et ajouter la couche GeoJSON
+        const respTopo = await fetch(topojsonUrl);
+        if(!respTopo.ok){
+          throw new Error("Fichier TopoJSON introuvable.");
+        }
+        const topoData = await respTopo.json();
+      
+        // Convertir TopoJSON en GeoJSON
+        if(!topoData.objects){
+          throw new Error("Pas d'objet 'objects' dans le TopoJSON.");
+        }
+        // Remplacez 'features' par le nom correct de l'objet dans votre TopoJSON
+        const topoObjectName = Object.keys(topoData.objects)[0]; // Dynamique selon votre TopoJSON
+        const geoData = topojson.feature(topoData, topoData.objects[topoObjectName]);
+      
+        // Définir une palette de couleurs basée sur la difficulté
+        const difficultyColors = {
+          "inconnu": "gray",
+          "très facile": "green",
+          "facile": "yellow",
+          "modéré": "orange",
+          "difficile": "red",
+          "très difficile": "darkred"
+        };
+      
+        // Créer une couche GeoJSON avec des styles basés sur la difficulté
+        const geojsonLayer = L.geoJSON(geoData, {
+          style: function(feature){
+            const difficulty = feature.properties.difficulty;
+            return { color: difficultyColors[difficulty] || "black", weight: 2 };
+          },
+          onEachFeature: function(feature, layer){
+            layer.on({
+              mouseover: highlightFeature,
+              mouseout: resetHighlight,
+              click: zoomToFeature
+            });
           }
-  
-          return div;
-      };
-  
-      rasterLegend.addTo(map);
-  
-    } catch(err){
-      console.error("Erreur chargement Raster Loamness:", err);
-      alert("Erreur chargement Raster Loamness (voir console).");
-    }
-  
-  } catch(err){
-    console.error("Erreur générale:", err);
-    alert("Erreur générale lors du chargement de la carte (voir console).");
-  }
-})();
+        }).addTo(map);
+      
+        // 6) Fonctions d'interactivité
+        function highlightFeature(e) {
+            const layer = e.target;
+    
+            layer.setStyle({
+                weight: 5,
+                color: '#666',
+                dashArray: '',
+                fillOpacity: 0.7
+            });
+    
+            if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                layer.bringToFront();
+            }
+    
+            info.update(layer.feature.properties);
+        }
+    
+        function resetHighlight(e) {
+            geojsonLayer.resetStyle(e.target);
+            info.update();
+        }
+    
+        function zoomToFeature(e) {
+            map.fitBounds(e.target.getBounds());
+        }
+      
+        // 7) Charger le Raster Loamness et l'ajouter à la carte
+        try {
+          const responseRaster = await fetch(rasterUrl);
+          if(!responseRaster.ok){
+            throw new Error("Fichier Raster Loamness introuvable.");
+          }
+          const arrayBuffer = await responseRaster.arrayBuffer();
+          
+          const georaster = await parseGeoraster(arrayBuffer);
+      
+          const rasterLayer = new GeoRasterLayer({
+            georaster: georaster,
+            opacity: 0.6,
+            pixelValuesToColorFn: values => {
+              if (values[0] === null || isNaN(values[0])) return null;
+              // Définir une couleur basée sur la valeur de loamness
+              const loam = values[0];
+              if (loam >= 80) return 'rgba(0, 255, 0, 0.6)';       // Vert pour élevé
+              if (loam >= 60) return 'rgba(173, 255, 47, 0.6)';  // Jaune-vert
+              if (loam >= 40) return 'rgba(255, 255, 0, 0.6)';    // Jaune
+              if (loam >= 20) return 'rgba(255, 165, 0, 0.6)';    // Orange
+              return 'rgba(255, 0, 0, 0.6)';                       // Rouge pour faible
+            },
+            resolution: 256 // Ajustez la résolution si nécessaire
+          });
+      
+          rasterLayer.addTo(map);
+      
+          // Ajouter une légende pour le raster
+          const rasterLegend = L.control({position: 'bottomleft'});
+      
+          rasterLegend.onAdd = function (map) {
+      
+              const div = L.DomUtil.create('div', 'info legend'),
+                  grades = [0, 20, 40, 60, 80, 100],
+                  labels = ["Très faible", "Faible", "Modéré", "Élevé", "Très élevé", "Très élevé"],
+                  colors = ["rgba(255, 0, 0, 0.6)", "rgba(255, 165, 0, 0.6)", "rgba(255, 255, 0, 0.6)",
+                            "rgba(173, 255, 47, 0.6)", "rgba(0, 255, 0, 0.6)", "rgba(0, 255, 0, 0.6)"];
+      
+              // Générer les étiquettes
+              for (let i = 0; i < grades.length; i++) {
+                  div.innerHTML +=
+                      '<i style="background:' + colors[i] + '"></i> ' +
+                      grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+              }
+      
+              return div;
+          };
+      
+          rasterLegend.addTo(map);
+      
+        } catch(err){
+          console.error("Erreur chargement Raster Loamness:", err);
+          alert("Erreur chargement Raster Loamness (voir console).");
+        }
+      
+      } catch(err){
+        console.error("Erreur générale:", err);
+        alert("Erreur générale lors du chargement de la carte (voir console).");
+      }
+    })();
 </script>
 
 </body>

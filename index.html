@@ -30,6 +30,19 @@
           margin-right: 8px;
           opacity: 0.7;
       }
+      .filter-control {
+          background: white;
+          padding: 10px;
+          border-radius: 5px;
+          box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      }
+      .filter-control h4 {
+          margin: 0 0 5px 0;
+          font-size: 16px;
+      }
+      .filter-control label {
+          font-size: 14px;
+      }
     </style>
 </head>
 <body>
@@ -106,8 +119,8 @@
         legend.onAdd = function (map) {
             const div = L.DomUtil.create('div', 'info legend'),
                 grades = ["inconnu", "très facile", "facile", "modéré", "difficile", "très difficile"],
-                colors = ["gray", "green", "yellow", "orange", "red", "darkred"];
-      
+                colors = ["gray", "#00FF00", "#FFFF00", "#FFA500", "#FF0000", "#8B0000"]; // Couleurs ajustées
+        
             // Générer les étiquettes
             for (let i = 0; i < grades.length; i++) {
                 div.innerHTML +=
@@ -140,18 +153,22 @@
         // Définir une palette de couleurs basée sur la difficulté
         const difficultyColors = {
           "inconnu": "gray",
-          "très facile": "green",
-          "facile": "yellow",
-          "modéré": "orange",
-          "difficile": "red",
-          "très difficile": "darkred"
+          "très facile": "#00FF00", // Vert vif
+          "facile": "#FFFF00",      // Jaune
+          "modéré": "#FFA500",      // Orange
+          "difficile": "#FF0000",   // Rouge
+          "très difficile": "#8B0000" // Rouge foncé
         };
       
         // Créer une couche GeoJSON avec des styles basés sur la difficulté
         const geojsonLayer = L.geoJSON(geoData, {
           style: function(feature){
             const difficulty = feature.properties.difficulty;
-            return { color: difficultyColors[difficulty] || "black", weight: 2 };
+            return { 
+                color: difficultyColors[difficulty] || "black", 
+                weight: 3, // Épaisseur augmentée pour meilleure visibilité
+                opacity: 1 
+            };
           },
           onEachFeature: function(feature, layer){
             layer.on({
@@ -159,6 +176,7 @@
               mouseout: resetHighlight,
               click: zoomToFeature
             });
+            layer.bindPopup(`<b>${feature.properties.nom}</b><br>Difficulté: ${feature.properties.difficulty}`);
           }
         }).addTo(map);
       
@@ -192,7 +210,54 @@
             map.fitBounds(e.target.getBounds());
         }
       
-        // 7) Charger le Raster Loamness et l'ajouter à la carte
+        // 7) Ajouter les Contrôles de Filtrage
+        // Créer un contrôle de filtrage
+        const filterControl = L.control({position: 'topright'});
+
+        filterControl.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'info filter-control');
+            div.innerHTML = `
+                <h4>Filtrer par Difficulté</h4>
+                <label><input type="checkbox" value="inconnu" checked> Inconnu</label><br>
+                <label><input type="checkbox" value="très facile" checked> Très Facile</label><br>
+                <label><input type="checkbox" value="facile" checked> Facile</label><br>
+                <label><input type="checkbox" value="modéré" checked> Modéré</label><br>
+                <label><input type="checkbox" value="difficile" checked> Difficile</label><br>
+                <label><input type="checkbox" value="très difficile" checked> Très Difficile</label><br>
+            `;
+            
+            // Empêcher l'interaction avec la carte lorsque l'utilisateur interagit avec les filtres
+            L.DomEvent.disableClickPropagation(div);
+            
+            // Ajouter des écouteurs d'événements aux cases à cocher
+            const checkboxes = div.querySelectorAll('input[type=checkbox]');
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function(e) {
+                    updateGeoJSONLayer();
+                });
+            });
+            
+            return div;
+        };
+
+        filterControl.addTo(map);
+
+        // 8) Fonction de Mise à Jour de la Couche GeoJSON en Fonction des Filtres
+        function updateGeoJSONLayer() {
+            const checkedDifficulties = Array.from(document.querySelectorAll('.filter-control input[type=checkbox]:checked'))
+                .map(cb => cb.value);
+            
+            geojsonLayer.clearLayers();
+            
+            const filteredData = {
+                "type": "FeatureCollection",
+                "features": geoData.features.filter(feature => checkedDifficulties.includes(feature.properties.difficulty))
+            };
+            
+            geojsonLayer.addData(filteredData);
+        }
+
+        // 9) Charger le Raster Loamness et l'ajouter à la carte
         try {
           const responseRaster = await fetch(rasterUrl);
           if(!responseRaster.ok){

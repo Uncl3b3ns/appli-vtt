@@ -24,6 +24,7 @@
           color: #555;
           max-height: 300px;
           overflow-y: auto;
+          margin-bottom: 10px;
       }
       .legend i {
           width: 18px;
@@ -170,6 +171,9 @@
               const option = L.DomUtil.create('option', '', select);
               option.value = dept;
               option.text = dept;
+              if (dept === defaultDept) {
+                  option.selected = true;
+              }
             }
 
             // Éviter que les clics sur le contrôle n'interfèrent avec la carte
@@ -209,37 +213,44 @@
 
         info.addTo(map);
 
-        // 9) Créer une légende unique pour tous les éléments
-        const legend = L.control({position: 'bottomright'});
+        // 9) Créer des légendes séparées pour la difficulté et le Loamness
+        // Légende pour la Difficulté des Chemins
+        const legendDifficulty = L.control({position: 'bottomleft'});
 
-        legend.onAdd = function (map) {
-            const div = L.DomUtil.create('div', 'info legend'),
-                grades = ["inconnu", "très facile", "facile", "modéré", "difficile", "très difficile"],
-                colors = ["gray", "#00FF00", "#FFFF00", "#FFA500", "#FF0000", "#8B0000"];
+        legendDifficulty.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'info legend');
+            const grades = ["inconnu", "très facile", "facile", "modéré", "difficile", "très difficile"];
+            const colors = ["gray", "#00FF00", "#FFFF00", "#FFA500", "#FF0000", "#8B0000"];
 
-            // Légende pour la difficulté des chemins
             div.innerHTML += '<h4>Difficulté des Chemins</h4>';
             for (let i = 0; i < grades.length; i++) {
                 div.innerHTML +=
                     '<i style="background:' + colors[i] + '"></i> ' +
                     grades[i] + '<br>';
             }
-
-            // Séparateur
-            div.innerHTML += '<hr>';
-
-            // Légende pour Loamness
-            div.innerHTML += '<h4>Loamness (%)</h4>';
-            div.innerHTML += 'Indice de Loamness : Mesure la proportion de sable, limon et argile dans le sol pour déterminer sa compatibilité avec le VTT. Des sols avec des proportions équilibrées favorisent une meilleure adhérence et maniabilité sur les sentiers.<br><br>';
-
-            // Légende pour la pente
-            div.innerHTML += '<h4>Pente</h4>';
-            div.innerHTML += 'Pente Moyenne : Inclinaison moyenne du chemin.<br>';
-            div.innerHTML += 'Pente Maximum : Inclinaison maximale rencontrée sur le chemin.';
             return div;
         };
 
-        legend.addTo(map);
+        legendDifficulty.addTo(map);
+
+        // Légende pour le Loamness
+        const legendLoamness = L.control({position: 'bottomright'});
+
+        legendLoamness.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'info legend');
+            div.innerHTML += '<h4>Loamness (%)</h4>';
+            div.innerHTML += `
+                <i style="background: rgba(0, 0, 139, 0.6)"></i> ≥ 95<br>
+                <i style="background: rgba(0, 100, 0, 0.6)"></i> ≥ 90<br>
+                <i style="background: rgba(34, 139, 34, 0.6)"></i> ≥ 85<br>
+                <i style="background: rgba(144, 238, 144, 0.6)"></i> ≥ 80<br>
+                <i style="background: transparent"></i> < 80<br>
+                <small>Indice de Loamness : Proportion de sable, limon et argile.</small>
+            `;
+            return div;
+        };
+
+        legendLoamness.addTo(map);
 
         // 10) Palette de couleurs en fonction de 'difficulty'
         const difficultyColors = {
@@ -431,10 +442,6 @@
         // 15) Charger le département par défaut au chargement de la page
         loadDepartment(defaultDept);
 
-      } catch(err){
-        console.error("Erreur générale:", err);
-        alert("Erreur générale lors du chargement de la carte: " + err.message);
-      }
     })();
 </script>
 

@@ -79,81 +79,109 @@
 
         // 1) Charger la config locale
         // Ici, on charge config/Hérault_config.json
-        // Dedans, on a "topojson_url": "https://drive.google.com/uc?export=download&id=1hBlnAL6Mm-ChjTWL_pRg5gyD5VuDexf1"
+        // Dedans, on a "topojson_url": "https://Uncl3b3ns.github.io/appli-vtt/data/Hérault_Chemins_difficulte.topojson"
         const responseConfig = await fetch('config/Hérault_config.json');  // Remplacez 'Hérault' par votre département
         if(!responseConfig.ok){
           throw new Error("Erreur lors du chargement du fichier de configuration.");
         }
         const config = await responseConfig.json();
-      
-        const topojsonUrl = config.topojson_url; // => lien Google Drive direct
+        console.log("Config loaded:", config); // Ajouté pour le débogage
+
+        const topojsonUrl = config.topojson_url; // => lien GitHub Pages
         const rasterUrl   = config.raster_url;   // => par ex. GitHub Pages
 
         // 2) Initialiser la carte
         const map = L.map('map').setView([43.6, 3.87], 8); // Centrez selon votre département
-      
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+
+        // Définir les couches de base
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom:19,
           attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
-      
+        }).addTo(map); // Ajouté par défaut
+
+        // Couches satellite et labels d'Esri
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          maxZoom: 19,
+          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        });
+
+        const labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+          maxZoom: 19,
+          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+        });
+
+        // Grouper satellite et labels pour une vue hybride
+        const satelliteLabels = L.layerGroup([satellite, labels]);
+
+        // Contrôle des couches de base
+        const baseLayers = {
+          "OSM": osm,
+          "Satellite": satelliteLabels
+        };
+
+        L.control.layers(baseLayers).addTo(map);
+
         // 3) Ajouter une couche d'informations
         const info = L.control();
-      
+
         info.onAdd = function (map) {
             this._div = L.DomUtil.create('div', 'info');
             this.update();
             return this._div;
         };
-      
+
         info.update = function (props) {
             this._div.innerHTML = '<h4>Difficulté des Chemins</h4>' +  (props
                 ? '<b>' + (props.nom || props.difficulty_clean || 'N/A') + '</b><br />' + props.difficulty
                 : 'Sélectionnez un chemin');
         };
-      
+
         info.addTo(map);
-      
-        // 4) Créer une légende pour les chemins
+
+        // 4) Créer une légende pour les chemins et le loamness
         const legend = L.control({position: 'bottomright'});
-      
+
         legend.onAdd = function (map) {
             const div = L.DomUtil.create('div', 'info legend'),
                 grades = ["inconnu", "très facile", "facile", "modéré", "difficile", "très difficile"],
                 colors = ["gray", "#00FF00", "#FFFF00", "#FFA500", "#FF0000", "#8B0000"];
-    
+
             for (let i = 0; i < grades.length; i++) {
                 div.innerHTML +=
                     '<i style="background:' + colors[i] + '"></i> ' +
                     grades[i] + '<br>';
             }
+
+            // Ajouter une séparation et une explication pour le loamness
+            div.innerHTML += '<hr><strong>Loamness (%)</strong><br>';
+            div.innerHTML += 'Indique la proportion de limon dans le sol. Les valeurs plus élevées représentent une plus grande présence de limon.';
             return div;
         };
-      
+
         legend.addTo(map);
-      
+
         // 5) Charger le TopoJSON et préparer la couche GeoJSON
         const respTopo = await fetch(topojsonUrl);
         if(!respTopo.ok){
-          throw new Error("Fichier TopoJSON introuvable (ou lien Google Drive invalide).");
+          throw new Error("Fichier TopoJSON introuvable (ou lien GitHub Pages invalide).");
         }
         const topoData = await respTopo.json();
-      
+
         if(!topoData.objects){
           throw new Error("Pas d'objet 'objects' dans le TopoJSON. Vérifiez votre fichier.");
         }
         // On prend le nom du premier objet si on ne le connaît pas
         const topoObjectName = Object.keys(topoData.objects)[0];
         const geoData = topojson.feature(topoData, topoData.objects[topoObjectName]);
-      
+
         console.log("GeoJSON Data:", geoData);
         if (geoData.features.length === 0) {
             throw new Error("Aucun feature trouvé dans le GeoJSON.");
         }
-      
+
         // Vérifier les propriétés
         console.log("Propriétés du premier feature:", geoData.features[0].properties);
-      
+
         // Palette de couleurs en fonction de 'difficulty'
         const difficultyColors = {
           "inconnu": "gray",
@@ -163,7 +191,7 @@
           "difficile": "#FF0000",
           "très difficile": "#8B0000"
         };
-      
+
         // Indexer par difficulté
         const featuresByDifficulty = {};
         geoData.features.forEach(feature => {
@@ -173,7 +201,7 @@
             }
             featuresByDifficulty[difficulty].push(feature);
         });
-  
+
         // Couche GeoJSON vide initialement
         const geojsonLayer = L.geoJSON(null, {
             style: function(feature){
@@ -195,7 +223,7 @@
                 );
             }
         }).addTo(map);
-      
+
         // Définir la fonction debounce
         function debounce(func, delay) {
             let inDebounce;
@@ -207,7 +235,7 @@
             }
         }
         const debouncedUpdate = debounce(updateGeoJSONLayer, 300);
-      
+
         // Fonctions d'interactivité
         function highlightFeature(e) {
             const layer = e.target;
@@ -222,19 +250,19 @@
             }
             info.update(layer.feature.properties);
         }
-    
+
         function resetHighlight(e) {
             geojsonLayer.resetStyle(e.target);
             info.update();
         }
-    
+
         function zoomToFeature(e) {
             map.fitBounds(e.target.getBounds());
         }
-      
+
         // 6) Contrôle de Filtrage
         const filterControl = L.control({position: 'topright'});
-  
+
         filterControl.onAdd = function (map) {
             const div = L.DomUtil.create('div', 'info filter-control');
             div.innerHTML = `
@@ -254,7 +282,7 @@
             return div;
         };
         filterControl.addTo(map);
-  
+
         // 7) Fonction de Mise à Jour de la Couche GeoJSON en Fonction des Filtres
         function updateGeoJSONLayer() {
             const checkedDifficulties = Array.from(
@@ -277,7 +305,7 @@
             
             geojsonLayer.addData(filteredData);
         }
-  
+
         // 8) Charger le Raster Loamness et l'ajouter
         try {
           const responseRaster = await fetch(rasterUrl);
@@ -294,49 +322,53 @@
             pixelValuesToColorFn: values => {
               if (values[0] === null || isNaN(values[0])) return null;
               const loam = values[0];
-              if (loam >= 95) return 'rgba(0, 0, 139, 0.6)';        
-              if (loam >= 90) return 'rgba(0, 100, 0, 0.6)';        
-              if (loam >= 85) return 'rgba(34, 139, 34, 0.6)';      
-              if (loam >= 80) return 'rgba(144, 238, 144, 0.6)';    
+              if (loam >= 95) return 'rgba(0, 0, 139, 0.6)';        // Bleu Très Foncé
+              if (loam >= 90) return 'rgba(0, 100, 0, 0.6)';        // Vert Foncé
+              if (loam >= 85) return 'rgba(34, 139, 34, 0.6)';       // Vert Moyen
+              if (loam >= 80) return 'rgba(144, 238, 144, 0.6)';     // Vert Clair
               return null; // < 80% => transparent
             },
-            resolution: 256
+            resolution: 256 // Ajustez la résolution si nécessaire
           });
       
           rasterLayer.addTo(map);
-      
+
           // Légende du raster Loamness
           const rasterLegend = L.control({position: 'bottomleft'});
-      
+
           rasterLegend.onAdd = function (map) {
               const div = L.DomUtil.create('div', 'info legend'),
                   grades = [80, 85, 90, 95, 100],
                   labels = ["80% – 85%", "85% – 90%", "90% – 95%", "95% – 100%"],
                   colors = [
-                      "rgba(144, 238, 144, 0.6)",
-                      "rgba(34, 139, 34, 0.6)",
-                      "rgba(0, 100, 0, 0.6)",
-                      "rgba(0, 0, 139, 0.6)"
+                      "rgba(144, 238, 144, 0.6)", // Vert Clair
+                      "rgba(34, 139, 34, 0.6)",   // Vert Moyen
+                      "rgba(0, 100, 0, 0.6)",     // Vert Foncé
+                      "rgba(0, 0, 139, 0.6)"      // Bleu Très Foncé
                   ];
-      
+
               for (let i = 0; i < labels.length; i++) {
                   div.innerHTML +=
                       '<i style="background:' + colors[i] + '"></i> ' +
                       labels[i] + '<br>';
               }
+
+              // Ajouter une explication pour le loamness
+              div.innerHTML += '<hr><strong>Loamness (%)</strong><br>';
+              div.innerHTML += 'Indique la proportion de limon dans le sol. Les valeurs plus élevées représentent une plus grande présence de limon.';
               return div;
           };
-      
+
           rasterLegend.addTo(map);
-      
+
           // Initialiser la couche Chemins + Filtres
           updateGeoJSONLayer();
-      
+
         } catch(err){
           console.error("Erreur chargement Raster Loamness:", err);
           alert("Erreur chargement Raster Loamness (voir console).");
         }
-      
+
       } catch(err){
         console.error("Erreur générale:", err);
         alert("Erreur générale lors du chargement de la carte: " + err.message);
